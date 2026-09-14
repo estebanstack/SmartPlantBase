@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matera Inteligente - Diagnóstico Botánico</title>
+    <!-- Fuentes Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Estilos CSS estáticos desacoplados (RA2) -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Script JS asíncrono con fetch diferido (RA2) -->
+    <script defer src="js/script.js"></script>
+</head>
+<body>
+    <div class="background-decor">
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+    </div>
+
+    <main class="container">
+        <header class="app-header">
+            <div class="badge-tag">Arquitectura en Capas · Matera Inteligente</div>
+            <h1>Diagnóstico Botánico</h1>
+            <p>Servicio de evaluación ambiental desacoplado. Monitorea y diagnostica la salud de tu planta en tiempo real.</p>
+        </header>
+
+        <!-- Banner de Error Visible (RF6) -->
+        <div id="error-banner" class="alert-error hidden" role="alert">
+            <h4 id="error-title">⚠️ Error en la solicitud</h4>
+            <p id="error-message"></p>
+        </div>
+
+        <div class="grid-layout">
+            <!-- Sección del Formulario -->
+            <section class="card form-card">
+                <h2>Ingreso de Medición</h2>
+                <form id="plant-form" novalidate>
+                    <div class="form-group">
+                        <label for="especie">Especie Botánica (RF5)</label>
+                        <select id="especie" name="especie" required>
+                            <option value="" disabled selected>Cargando especies desde API...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="temperatura">Temperatura Ambiental (°C)</label>
+                        <input type="number" id="temperatura" name="temperatura" step="0.1" placeholder="Ej. 21.0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="humedad">Humedad del Sustrato (%)</label>
+                        <input type="number" id="humedad" name="humedad" min="0" max="100" step="0.1" placeholder="Ej. 32.5" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="luz">Nivel de Iluminación (lux)</label>
+                        <input type="number" id="luz" name="luz" min="0" step="10" placeholder="Ej. 850" required>
+                    </div>
+
+                    <button type="submit" id="btn-evaluar" class="btn-primary">
+                        <span>Evaluar Diagnóstico</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Sección de Resultados (Actualizada Asíncronamente) -->
+            <section class="card result-card" id="resultado-container">
+                <div class="empty-state" id="empty-state">
+                    <div class="icon-bubble">🪴</div>
+                    <h3>Esperando medición</h3>
+                    <p>Selecciona una especie e ingresa los parámetros de los sensores para consultar el diagnóstico.</p>
+                </div>
+
+                <div class="result-content hidden" id="result-content">
+                    <!-- Cabecera del Estado Global (RF3) -->
+                    <div class="status-header" id="status-header">
+                        <div class="status-icon" id="status-icon">🌱</div>
+                        <div class="status-text-group">
+                            <span class="status-badge" id="status-badge">DESCONOCIDO</span>
+                            <h3 id="status-title">---</h3>
+                        </div>
+                    </div>
+
+                    <p class="status-summary" id="status-summary"></p>
+
+                    <!-- Lista de Parámetros y Recomendaciones (RF2, RF4) -->
+                    <div class="details-box">
+                        <h4>Recomendaciones y Observaciones (RF4)</h4>
+                        <ul class="observations-list" id="observations-list"></ul>
+                    </div>
+
+                    <!-- Rangos de Referencia Ideales de la Especie -->
+                    <div class="reference-ranges">
+                        <h4>Parámetros Evaluados vs Rango Óptimo</h4>
+                        <div class="ranges-grid" id="ranges-grid"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+</body>
+</html>
