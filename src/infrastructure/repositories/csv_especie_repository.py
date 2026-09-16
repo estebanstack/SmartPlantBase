@@ -1,5 +1,5 @@
 """
-Implementación de persistencia basada en archivo CSV (Capa de Abastecimiento / Infraestructura).
+Implementación de persistencia basada en archivo CSV (Capa de Infraestructura).
 Implementa la abstracción EspecieRepository definida en el Dominio (RA5, DIP).
 """
 import csv

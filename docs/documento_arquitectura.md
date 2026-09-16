@@ -33,7 +33,7 @@ graph TD
         D4["repositories.py (EspecieRepository - Interfaz / Puerto)"]
     end
 
-    subgraph Abastecimiento["Capa de Abastecimiento / Infraestructura (src/infrastructure/)"]
+    subgraph Infrastructure["Capa de Infraestructura (src/infrastructure/)"]
         I1["repositories/csv_especie_repository.py (CsvEspecieRepository)"]
         DATA[("data/especies_referencia.csv")]
     end
@@ -99,7 +99,7 @@ sequenceDiagram
     UC->>Rules: evaluar(medicion, especie)
     activate Rules
     Rules->>Rules: Clasifica cada parámetro (BAJO / OPTIMO / ALTO)
-    Rules->>Rules: Calcula índice de vitalidad (SALUDABLE / EN_RIESGO / CRITICO)
+    Rules->>Rules: Deriva el estado global (SALUDABLE / EN_RIESGO / CRITICO)
     Rules->>Rules: Genera recomendaciones textuales para desviaciones
     Rules->>Ent: Diagnostico(especie, estado, parametros, recomendaciones)
     Rules-->>UC: Instancia de Diagnostico
@@ -119,25 +119,25 @@ sequenceDiagram
 
 ## 3. Tabla de Responsabilidades por Capa
 
-Siguiendo las pautas metodológicas de arquitectura limpia y la especificación de la **guía interna ASW-4.2**:
+Cada capa tiene una única razón para cambiar y depende exclusivamente de capas más internas. Las prohibiciones de la tercera columna son verificables sobre el código: basta revisar los `import` de cada paquete.
 
 | Capa | Qué hace (Responsabilidades) | Qué tiene PROHIBIDO hacer | De qué depende |
 | :--- | :--- | :--- | :--- |
 | **Presentación** (`src/presentation/`) | Expone los endpoints REST (`POST /api/v1/diagnosticos`, `GET /api/v1/especies`), recibe peticiones HTTP, valida tipos básicos en el borde del sistema, mapea errores a respuestas JSON con código de estado HTTP adecuado (RF6). | Renderizar HTML o plantillas de servidor (**RA1**), contener lógica de negocio o reglas de salud vegetal, acceder a archivos o bases de datos directamente. | Capa de **Aplicación** (Casos de Uso y DTOs) y excepciones de **Dominio**. |
 | **Aplicación** (`src/application/`) | Orquesta los casos de uso (`EvaluarDiagnosticoUseCase`, `ListarEspeciesUseCase`), coordina la conversión entre DTOs y entidades de dominio, y consulta los datos mediante el puerto de repositorio. | Depender de frameworks web (Flask, Django), conocer detalles de persistencia (CSV, SQL), generar respuestas HTTP o conocer requests de red. | Capa de **Dominio** (Entidades, Excepciones, Reglas y Abstracciones de Repositorio). |
-| **Dominio** (`src/domain/`) | Encapsula las entidades puras (`Medicion`, `Especie`), define las invariantes físicas (RF6), calcula el **índice de vitalidad** / estado global (RF3), clasifica variables (RF2), genera recomendaciones botánicas (RF4) y declara el contrato abstracto `EspecieRepository` (**RA5**). | Importar bibliotecas web (Flask, FastAPI), importar bibliotecas de persistencia (CSV, SQLite, Pandas), depender de capas externas (**RA4**). El dominio es 100% puro y corre en cualquier entorno. | **De nada** (únicamente de la biblioteca estándar de Python: `typing`, `dataclasses`, `enum`, `abc`). |
-| **Abastecimiento / Infraestructura** (`src/infrastructure/`) | Implementa los adaptadores concretos de persistencia (`CsvEspecieRepository`) leyendo la tabla de referencia del CSV, gestiona cachés de acceso a datos y realiza operaciones de E/S física. | Decidir si una planta está sana o enferma, alterar reglas de clasificación de negocio, exponer controladores HTTP. | Capa de **Dominio** (implementa la interfaz abstracta `EspecieRepository` y produce entidades `Especie`). |
-| **Frontend** (`frontend/`) | Provee la interfaz visual interactiva, consume la API REST de forma asíncrona (`fetch`), puebla dinámicamente el catálogo de especies (RF5) y presenta al usuario el índice de vitalidad y errores sin recarga de página (**RA2**). | Alojar lógica de diagnóstico botánico o validación de rangos biológicos (delega la autoridad al backend). | Del contrato HTTP JSON expuesto por la capa de Presentación. |
+| **Dominio** (`src/domain/`) | Encapsula las entidades puras (`Medicion`, `Especie`), define las invariantes físicas (RF6), deriva el **estado global** de la planta (RF3), clasifica variables (RF2), genera recomendaciones botánicas (RF4) y declara el contrato abstracto `EspecieRepository` (**RA5**). | Importar bibliotecas web (Flask, FastAPI), importar bibliotecas de persistencia (CSV, SQLite, Pandas), depender de capas externas (**RA4**). El dominio es 100% puro y corre en cualquier entorno. | **De nada** (únicamente de la biblioteca estándar de Python: `typing`, `dataclasses`, `enum`, `abc`). |
+| **Infraestructura** (`src/infrastructure/`) | Implementa los adaptadores concretos de persistencia (`CsvEspecieRepository`) leyendo la tabla de referencia del CSV, gestiona cachés de acceso a datos y realiza operaciones de E/S física. | Decidir si una planta está sana o enferma, alterar reglas de clasificación de negocio, exponer controladores HTTP. | Capa de **Dominio** (implementa la interfaz abstracta `EspecieRepository` y produce entidades `Especie`). |
+| **Frontend** (`frontend/`) | Provee la interfaz visual interactiva, consume la API REST de forma asíncrona (`fetch`), puebla dinámicamente el catálogo de especies (RF5) y presenta al usuario el estado global y los errores sin recarga de página (**RA2**). | Alojar lógica de diagnóstico botánico o validación de rangos biológicos (delega la autoridad al backend). | Del contrato HTTP JSON expuesto por la capa de Presentación. |
 
 ---
 
 ## 4. Justificación de Principios SOLID
 
-Tal como lo estipula la **guía interna ASW-4.2**: *"La robustez de un sistema desacoplado radica en que los cambios en los mecanismos de entrada y almacenamiento no generen ondas de propagación hacia las reglas centrales del negocio"*. A continuación se demuestra la aplicación rigurosa de cada principio con anclaje al código:
+El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTTP, MQTT) o en el mecanismo de almacenamiento (CSV, base de datos) no debe propagarse hacia las reglas de negocio. A continuación se justifica cada principio con referencia a archivo y línea del repositorio.
 
 ### Single Responsibility Principle (SRP)
 - **Dónde se aplica:**
-  - `src/domain/rules.py` (Líneas 18–110): La clase `EvaluadorDiagnostico` tiene una única razón para cambiar: cambios en las reglas agronómicas de evaluación o cálculo del índice de vitalidad de las plantas.
+  - `src/domain/rules.py` (Líneas 18–110): La clase `EvaluadorDiagnostico` tiene una única razón para cambiar: cambios en las reglas agronómicas de evaluación o en la derivación del estado global de la planta.
   - `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 13–70): La clase `CsvEspecieRepository` solo cambia si varía el formato del archivo CSV o la estrategia de lectura del disco.
   - `src/presentation/controllers.py` (Líneas 14–78): Los controladores solo cambian si se modifican los contratos de transporte REST o la serialización HTTP.
 - **Qué habría pasado de no aplicarlo:** Si una sola clase o script (`app.py` monolítico) leyera el CSV, calculara el estado y emitiera la respuesta HTTP, un cambio en el delimitador del archivo de texto rompería o exigiría re-probar la lógica de diagnóstico botánico y el endpoint web.
@@ -163,7 +163,7 @@ Tal como lo estipula la **guía interna ASW-4.2**: *"La robustez de un sistema d
 ### Dependency Inversion Principle (DIP)
 - **Dónde se aplica:**
   - Es la formalización de **RA5**. El caso de uso de aplicación (`src/application/use_cases.py:L27-L28`) depende de la abstracción `EspecieRepository` definida en `src/domain/repositories.py`.
-  - La implementación física `CsvEspecieRepository` vive en la capa de abastecimiento (`src/infrastructure/repositories/csv_especie_repository.py:L13`) y depende de la interfaz de dominio.
+  - La implementación física `CsvEspecieRepository` vive en la capa de infraestructura (`src/infrastructure/repositories/csv_especie_repository.py:L13`) y depende de la interfaz de dominio.
   - La composición final se realiza en `app.py` (Líneas 29–42), donde se inyecta la instancia concreta en el caso de uso.
 - **Qué habría pasado de no aplicarlo:** El caso de uso importaría directamente `CsvEspecieRepository`. Esto haría imposible ejecutar pruebas unitarias del caso de uso sin tener el archivo físico en el disco duro y violaría la restricción **RA4**.
 
@@ -181,16 +181,16 @@ Tal como lo estipula la **guía interna ASW-4.2**: *"La robustez de un sistema d
 * **Qué componentes NO se tocan:**
   - La totalidad de la capa de dominio: `src/domain/entities.py`, `src/domain/rules.py`, `src/domain/exceptions.py`.
   - La totalidad de la capa de aplicación: `src/application/use_cases.py` (`EvaluarDiagnosticoUseCase` es agnóstico al protocolo de transporte y se reutiliza idénticamente).
-  - La capa de abastecimiento / infraestructura CSV: `src/infrastructure/repositories/csv_especie_repository.py`.
+  - La capa de infraestructura CSV: `src/infrastructure/repositories/csv_especie_repository.py`.
 
 ### Escenario B: La tabla de referencia migra de CSV a una Base de Datos Relacional (PostgreSQL)
 * **Qué componentes se agregan:**
-  - Una nueva clase en la capa de abastecimiento: `src/infrastructure/repositories/postgres_especie_repository.py`, que implementa `EspecieRepository` mediante SQL o un conector ligero (e.g. `psycopg2` / `SQLAlchemy core`).
+  - Una nueva clase en la capa de infraestructura: `src/infrastructure/repositories/postgres_especie_repository.py`, que implementa `EspecieRepository` mediante SQL o un conector ligero (e.g. `psycopg2` / `SQLAlchemy core`).
   - Script SQL de migración y creación de tabla con los datos semilla de las especies.
 * **Qué componentes se modifican:**
   - Exclusivamente una línea en `app.py`: en lugar de instanciar `CsvEspecieRepository`, se instancia `PostgresEspecieRepository(connection_string)`.
 * **Qué componentes NO se tocan:**
-  - La interfaz de abastecimiento `EspecieRepository` en el dominio.
+  - La interfaz `EspecieRepository` declarada en el dominio.
   - Los casos de uso (`EvaluarDiagnosticoUseCase`, `ListarEspeciesUseCase`).
   - Todas las entidades y reglas del dominio.
   - Todos los controladores REST de la capa de presentación y el frontend.
@@ -213,7 +213,7 @@ Tal como lo estipula la **guía interna ASW-4.2**: *"La robustez de un sistema d
 * **Qué componentes se agregan:**
   - Un nuevo bounded context / paquete de gamificación independiente: `src/gamification/` con entidades `Puntaje`, `RachaCuidado`, `Nivel` y reglas de otorgamiento de insignias.
   - Un mecanismo de eventos de dominio en aplicación: `DiagnosticoGeneradoEvent`.
-  - Un suscriptor / listener de evento: `GamificacionListener`, que incrementa la racha cuando el índice de vitalidad es `SALUDABLE` o penaliza si se encuentra en estado `CRITICO`.
+  - Un suscriptor / listener de evento: `GamificacionListener`, que incrementa la racha cuando el estado global es `SALUDABLE` o la penaliza si es `CRITICO`.
 * **Qué componentes se modifican:**
   - El caso de uso `EvaluarDiagnosticoUseCase` para emitir el evento `DiagnosticoGeneradoEvent` tras completar el diagnóstico.
 * **Qué componentes NO se tocan:**

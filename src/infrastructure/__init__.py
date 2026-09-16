@@ -1,1 +1,1 @@
-# Capa de Abastecimiento / Infraestructura: adaptadores externos y persistencia
+# Capa de Infraestructura: adaptadores externos y persistencia

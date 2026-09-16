@@ -30,7 +30,7 @@ def create_app(ruta_csv: Optional[str] = None) -> Flask:
         ruta_csv = str(ruta_base / "data" / "especies_referencia.csv")
 
     # Inyección de Dependencias
-    # 1. Capa de Infraestructura / Abastecimiento
+    # 1. Capa de Infraestructura
     especie_repository = CsvEspecieRepository(ruta_csv)
 
     # 2. Capa de Aplicación

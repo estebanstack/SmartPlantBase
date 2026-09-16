@@ -1,5 +1,5 @@
 """
-Pruebas de la capa de infraestructura (Abastecimiento de datos CSV).
+Pruebas de la capa de infraestructura (lectura de la tabla de referencia CSV).
 Verifica que el repositorio CSV cargue correctamente la tabla de referencia.
 """
 from pathlib import Path

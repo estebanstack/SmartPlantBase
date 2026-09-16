@@ -9,7 +9,7 @@ from src.domain.entities import Especie
 
 class EspecieRepository(ABC):
     """
-    Contrato abstracto para el abastecimiento de datos de especies botánicas.
+    Contrato abstracto para la obtención de datos de especies botánicas.
     El dominio depende de esta abstracción, no de CSV, bases de datos o APIs.
     """
 
