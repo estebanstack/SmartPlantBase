@@ -10,8 +10,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Estilos CSS estáticos desacoplados (RA2) -->
     <link rel="stylesheet" href="css/style.css">
-    <!-- Script JS asíncrono con fetch diferido (RA2) -->
-    <script defer src="js/script.js"></script>
+    <!-- Cliente asíncrono, separado por responsabilidad (RA2) -->
+    <script defer src="js/config.js"></script>
+    <script defer src="js/api.js"></script>
+    <script defer src="js/ui.js"></script>
+    <script defer src="js/app.js"></script>
 </head>
 <body>
     <div class="background-decor">
@@ -38,29 +41,17 @@
                 <h2>Ingreso de Medición</h2>
                 <form id="plant-form" novalidate>
                     <div class="form-group">
-                        <label for="especie">Especie Botánica (RF5)</label>
+                        <label for="especie">Especie botánica (RF5)</label>
                         <select id="especie" name="especie" required>
-                            <option value="" disabled selected>Cargando especies desde API...</option>
+                            <option value="" disabled selected>Cargando especies desde la API...</option>
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label for="temperatura">Temperatura Ambiental (°C)</label>
-                        <input type="number" id="temperatura" name="temperatura" step="0.1" placeholder="Ej. 21.0" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="humedad">Humedad del Sustrato (%)</label>
-                        <input type="number" id="humedad" name="humedad" min="0" max="100" step="0.1" placeholder="Ej. 32.5" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="luz">Nivel de Iluminación (lux)</label>
-                        <input type="number" id="luz" name="luz" min="0" step="10" placeholder="Ej. 850" required>
-                    </div>
+                    <!-- Los campos de medición los genera ui.js a partir de RF5 -->
+                    <div id="campos-medicion"></div>
 
                     <button type="submit" id="btn-evaluar" class="btn-primary">
-                        <span>Evaluar Diagnóstico</span>
+                        <span id="btn-evaluar-texto">Evaluar diagnóstico</span>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                             <polyline points="12 5 19 12 12 19"></polyline>

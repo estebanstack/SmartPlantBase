@@ -13,7 +13,10 @@ graph TD
     subgraph Frontend["Cliente Web Independiente (frontend/)"]
         F1["index.html"]
         F2["css/style.css"]
-        F3["js/script.js"]
+        F3["js/config.js (dirección del backend)"]
+        F4["js/api.js (PlantApi - único que conoce HTTP)"]
+        F5["js/ui.js (PlantUI - único que toca el DOM)"]
+        F6["js/app.js (orquestación)"]
     end
 
     subgraph Presentation["Capa de Presentación (src/presentation/)"]
@@ -43,7 +46,10 @@ graph TD
     end
 
     %% Relaciones de consumo y dependencia
-    F3 -.->|"HTTP JSON (CORS)"| P1
+    F4 -.->|"HTTP JSON (CORS)"| P1
+    F6 -->|"pide datos a"| F4
+    F6 -->|"entrega datos a"| F5
+    F4 -->|"lee la URL de"| F3
     ROOT -->|"Ensambla e inyecta dependencias"| P1
     ROOT -->|"Instancia"| I1
     ROOT -->|"Instancia"| A1
@@ -69,16 +75,21 @@ Recorrido de ejecución completo para la operación de diagnóstico botánico (`
 sequenceDiagram
     autonumber
     actor Usuario
-    participant Front as frontend/js/script.js
+    participant App as frontend/js/app.js
+    participant Api as frontend/js/api.js
+    participant Ui as frontend/js/ui.js
     participant Ctrl as src.presentation.controllers (evaluar_diagnostico)
     participant UC as src.application.use_cases (EvaluarDiagnosticoUseCase)
     participant Repo as src.infrastructure.repositories.csv_especie_repository (CsvEspecieRepository)
     participant Rules as src.domain.rules (EvaluadorDiagnostico)
     participant Ent as src.domain.entities (Medicion / Diagnostico)
 
-    Usuario->>Front: Ingresa datos y presiona "Evaluar Diagnóstico"
-    Front->>Front: e.preventDefault() [Evita recarga de página]
-    Front->>Ctrl: POST /api/v1/diagnosticos {especie, humedad, luz, temperatura}
+    Usuario->>App: Ingresa datos y presiona "Evaluar diagnóstico"
+    App->>App: evento.preventDefault() [Evita recarga de página]
+    App->>Ui: leerFormulario()
+    Ui-->>App: {especie, valores}
+    App->>Api: evaluarDiagnostico(especie, valores)
+    Api->>Ctrl: POST /api/v1/diagnosticos {especie, humedad, luz, temperatura}
     
     activate Ctrl
     Ctrl->>Ctrl: Valida presencia y formato numérico de PARAMETROS_SOPORTADOS
@@ -108,11 +119,12 @@ sequenceDiagram
     UC-->>Ctrl: DiagnosticoResponseDTO
     deactivate UC
 
-    Ctrl-->>Front: HTTP 200 OK (JSON conforme Anexo A)
+    Ctrl-->>Api: HTTP 200 OK (JSON conforme Anexo A)
     deactivate Ctrl
 
-    Front->>Front: renderizarDiagnostico(datos) [Actualiza DOM de forma reactiva]
-    Front-->>Usuario: Muestra estado, parámetros y recomendaciones
+    Api-->>App: Diagnóstico ya normalizado (sin códigos HTTP)
+    App->>Ui: renderizarDiagnostico(diagnostico)
+    Ui-->>Usuario: Muestra estado, parámetros y recomendaciones sin recargar
 ```
 
 ---
@@ -127,7 +139,9 @@ Cada capa tiene una única razón para cambiar y depende exclusivamente de capas
 | **Aplicación** (`src/application/`) | Orquesta los casos de uso (`EvaluarDiagnosticoUseCase`, `ListarEspeciesUseCase`), coordina la conversión entre DTOs y entidades de dominio, y consulta los datos mediante el puerto de repositorio. | Depender de frameworks web (Flask, Django), conocer detalles de persistencia (CSV, SQL), generar respuestas HTTP o conocer requests de red. | Capa de **Dominio** (Entidades, Excepciones, Reglas y Abstracciones de Repositorio). |
 | **Dominio** (`src/domain/`) | Encapsula las entidades puras (`Medicion`, `Especie`), declara en `LIMITES_FISICOS` el catálogo de variables ambientales soportadas y sus invariantes físicas (RF6), deriva el **estado global** de la planta (RF3), clasifica variables (RF2), genera recomendaciones botánicas (RF4) y declara el contrato abstracto `EspecieRepository` (**RA5**). | Importar bibliotecas web (Flask, FastAPI), importar bibliotecas de persistencia (CSV, SQLite, Pandas), depender de capas externas (**RA4**). El dominio es 100% puro y corre en cualquier entorno. | **De nada** (únicamente de la biblioteca estándar de Python: `typing`, `dataclasses`, `enum`, `abc`). |
 | **Infraestructura** (`src/infrastructure/`) | Implementa los adaptadores concretos de persistencia (`CsvEspecieRepository`) leyendo la tabla de referencia del CSV, gestiona cachés de acceso a datos y realiza operaciones de E/S física. | Decidir si una planta está sana o enferma, alterar reglas de clasificación de negocio, exponer controladores HTTP. | Capa de **Dominio** (implementa la interfaz abstracta `EspecieRepository` y produce entidades `Especie`). |
-| **Frontend** (`frontend/`) | Provee la interfaz visual interactiva, consume la API REST de forma asíncrona (`fetch`), puebla dinámicamente el catálogo de especies (RF5) y presenta al usuario el estado global y los errores sin recarga de página (**RA2**). | Alojar lógica de diagnóstico botánico o validación de rangos biológicos (delega la autoridad al backend). | Del contrato HTTP JSON expuesto por la capa de Presentación. |
+| **Frontend — acceso** (`frontend/js/api.js`, `config.js`) | Construye las peticiones asíncronas (`fetch`), interpreta los códigos de estado HTTP y traduce los errores de RF6 a un `ApiError` uniforme. | Tocar el DOM o conocer elementos de la página. | De `config.js` (única ubicación de la URL del backend) y del contrato JSON de la capa de Presentación. |
+| **Frontend — presentación** (`frontend/js/ui.js`) | Construye el selector de especies y los campos de medición a partir de RF5, pinta el diagnóstico y los errores, y devuelve lo que el usuario escribió (**RA2**). | Saber que existe HTTP: no conoce URLs, `fetch` ni códigos de estado. | Del DOM de `index.html` únicamente. |
+| **Frontend — orquestación** (`frontend/js/app.js`) | Une las dos anteriores: pide datos a `PlantApi` y se los entrega a `PlantUI`. | Alojar reglas de diagnóstico o validación de rangos biológicos (la autoridad es del backend). | De `api.js` y `ui.js`. |
 
 ---
 
@@ -149,7 +163,7 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
   - `src/infrastructure/.../csv_especie_repository.py` (Líneas 28, 34–37, 51–63): las columnas del CSV se derivan del nombre del parámetro (`{parametro}_min` / `{parametro}_max`); el diccionario `_PREFIJOS_CSV` sólo existe porque el Anexo B abrevia la temperatura como `temp`.
   - `src/presentation/controllers.py` (Líneas 49–52): el controlador exige como obligatorios los parámetros que declara el dominio, no una lista escrita a mano.
   - La abstracción `EspecieRepository` (`src/domain/repositories.py`) está abierta a nuevas implementaciones (PostgreSQL, MongoDB) sin modificar el código consumidor.
-- **Verificación:** agregar el pH del sustrato como cuarto parámetro requiere **dos archivos**: una entrada en `LIMITES_FISICOS` y dos columnas en `data/especies_referencia.csv`. El evaluador, los DTOs, los casos de uso y el controlador no se modifican. Lo comprobamos ejecutando el cambio: la API pasó a exigir, validar y clasificar `ph` sin tocar ningún otro archivo.
+- **Verificación:** agregar el pH del sustrato como cuarto parámetro requiere **dos archivos**: una entrada en `LIMITES_FISICOS` y dos columnas en `data/especies_referencia.csv`. El evaluador, los DTOs, los casos de uso y el controlador no se modifican. Lo comprobamos ejecutando el cambio: la API pasó a exigir, validar y clasificar `ph`, y el formulario web generó su campo automáticamente, sin tocar ningún otro archivo del backend ni del front.
 - **Tensión reconocida:** el *cálculo* queda cerrado a modificación, pero el *catálogo de textos* no. `EvaluadorDiagnostico._RECOMENDACIONES` (L31–46) no tiene entradas para un parámetro nuevo, de modo que el pH desviado recibe el mensaje genérico de `_generar_recomendacion()` (L59–64). Para darle una recomendación específica sí hay que editar `rules.py`. Lo aceptamos: la alternativa era externalizar los textos a un archivo de configuración, lo que habría metido una dependencia de I/O en el dominio y violado RA4 por resolver un problema que este corte no plantea.
 - **Qué habría pasado de no aplicarlo:** con `Especie` y `Medicion` modelados como tres campos fijos (`rango_humedad`, `rango_luz`, `rango_temperatura`), cada variable ambiental nueva obligaba a modificar siete archivos, incluido el evaluador: la clase que decide el estado de la planta tendría que cambiar por una razón ajena a las reglas de diagnóstico.
 
@@ -249,3 +263,10 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
 * **Razón del descarte:** Con campos fijos, agregar una cuarta variable obligaba a modificar siete archivos, entre ellos `EvaluadorDiagnostico`, lo que contradecía nuestra propia afirmación de OCP. Con la colección son dos, y ninguno es el evaluador.
 * **Costo asumido:** se pierde el acceso por atributo (`medicion.humedad` pasa a `medicion.valor_de("humedad")`) y con él la detección de errores de tipeo en tiempo de escritura. Lo compensamos haciendo que `Medicion` valide en su constructor que cada clave exista en `LIMITES_FISICOS` (L104–108): un nombre inválido falla al construir la entidad, con el campo señalado, y no silenciosamente durante la evaluación.
 * **Nota sobre RA6:** `Medicion.valores` no es un diccionario crudo. `Medicion` es un objeto de valor que sólo puede existir si supera sus invariantes (parámetro reconocido, valor numérico, valor físicamente posible) y congela su contenido con `MappingProxyType` (L122). El diccionario es su representación interna; su contrato de entrada es el constructor que valida.
+
+### Decisión 5: Front Separado en Capas vs Un Único Archivo de Script
+* **Opción adoptada:** Dividir el cliente en cuatro archivos con una responsabilidad cada uno: `config.js` (dirección del backend), `api.js` (`PlantApi`, único que usa `fetch` y lee códigos HTTP), `ui.js` (`PlantUI`, único que toca el DOM) y `app.js` (orquestación). Los campos de medición del formulario se generan a partir del catálogo de RF5.
+* **Alternativa descartada:** Mantener `script.js`, un único archivo que mezclaba la configuración, las peticiones, el renderizado y el manejo de errores, con los tres campos escritos a mano en `index.html`.
+* **Razón del descarte:** La separación del backend perdía sentido si el cliente concentraba todo en un archivo. Con la división, `ui.js` no sabe que existe HTTP —recibe datos ya resueltos y devuelve lo que el usuario escribió— del mismo modo que el dominio no sabe que existe Flask. Además, con los campos escritos a mano, agregar una variable ambiental obligaba a editar el HTML y el JS; al generarlos desde RF5, el front la incorpora sin cambios.
+* **Costo asumido:** el front hace cuatro peticiones de script en lugar de una y las etiquetas de los campos se derivan del nombre y la unidad que envía la API (`Humedad (%)`), en vez de textos redactados a mano. Para un cliente de este tamaño, servido localmente, ninguno de los dos costos es significativo.
+

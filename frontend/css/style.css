@@ -411,3 +411,9 @@ body {
 .state-en_riesgo .status-icon { background: var(--warning-bg); }
 .state-en_riesgo .status-badge { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
 
+
+/* Campo señalado por un error de RF6 */
+.form-group input.campo-invalido {
+    border-color: #e5534b;
+    box-shadow: 0 0 0 3px rgba(229, 83, 75, 0.18);
+}
