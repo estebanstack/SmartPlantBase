@@ -22,9 +22,11 @@ def test_csv_especie_repository_carga_especies_anexo_b():
 
     sansevieria = repo.obtener_por_nombre("sansevieria")
     assert sansevieria is not None
-    assert sansevieria.rango_humedad.minimo == 20.0
-    assert sansevieria.rango_humedad.maximo == 45.0
-    assert sansevieria.rango_luz.minimo == 200.0
-    assert sansevieria.rango_luz.maximo == 1500.0
-    assert sansevieria.rango_temperatura.minimo == 15.0
-    assert sansevieria.rango_temperatura.maximo == 29.0
+    assert set(sansevieria.rangos) == {"humedad", "luz", "temperatura"}
+    assert sansevieria.rangos["humedad"].minimo == 20.0
+    assert sansevieria.rangos["humedad"].maximo == 45.0
+    assert sansevieria.rangos["luz"].minimo == 200.0
+    assert sansevieria.rangos["luz"].maximo == 1500.0
+    assert sansevieria.rangos["temperatura"].minimo == 15.0
+    assert sansevieria.rangos["temperatura"].maximo == 29.0
+    assert sansevieria.rangos["temperatura"].unidad == "°C"

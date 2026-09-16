@@ -6,7 +6,12 @@ import csv
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from src.domain.entities import Especie, RangoParametro
+from src.domain.entities import (
+    LIMITES_FISICOS,
+    PARAMETROS_SOPORTADOS,
+    Especie,
+    RangoParametro,
+)
 from src.domain.repositories import EspecieRepository
 
 
@@ -17,12 +22,22 @@ class CsvEspecieRepository(EspecieRepository):
     garantizando que el dominio desconozca por completo los detalles de I/O y CSV.
     """
 
+    # El Anexo B abrevia la columna de temperatura. Cualquier parámetro cuyo
+    # nombre de dominio coincida con el prefijo de sus columnas (p. ej. ph_min /
+    # ph_max) se resuelve sin tocar esta clase.
+    _PREFIJOS_CSV: Dict[str, str] = {"temperatura": "temp"}
+
     def __init__(self, ruta_archivo_csv: str | Path):
         self._ruta = Path(ruta_archivo_csv)
         self._cache: Optional[Dict[str, Especie]] = None
 
+    @classmethod
+    def _columnas_de(cls, parametro: str) -> tuple[str, str]:
+        prefijo = cls._PREFIJOS_CSV.get(parametro, parametro)
+        return f"{prefijo}_min", f"{prefijo}_max"
+
     def _cargar_datos(self) -> Dict[str, Especie]:
-        """Lee y mapea el CSV en entidades de dominio."""
+        """Lee el CSV y lo mapea a entidades de dominio."""
         if not self._ruta.exists():
             raise FileNotFoundError(f"El archivo de referencia CSV no existe en la ruta: {self._ruta}")
 
@@ -31,25 +46,22 @@ class CsvEspecieRepository(EspecieRepository):
             lector = csv.DictReader(archivo)
             for fila in lector:
                 nombre = fila["especie"].strip().lower()
-                especie = Especie(
-                    nombre=nombre,
-                    rango_humedad=RangoParametro(
-                        minimo=float(fila["humedad_min"]),
-                        maximo=float(fila["humedad_max"]),
-                        unidad="%",
-                    ),
-                    rango_luz=RangoParametro(
-                        minimo=float(fila["luz_min"]),
-                        maximo=float(fila["luz_max"]),
-                        unidad="lux",
-                    ),
-                    rango_temperatura=RangoParametro(
-                        minimo=float(fila["temp_min"]),
-                        maximo=float(fila["temp_max"]),
-                        unidad="°C",
-                    ),
-                )
-                especies[nombre] = especie
+
+                rangos: Dict[str, RangoParametro] = {}
+                for parametro in PARAMETROS_SOPORTADOS:
+                    col_min, col_max = self._columnas_de(parametro)
+                    if col_min not in fila or col_max not in fila:
+                        raise ValueError(
+                            f"La tabla de referencia no define las columnas '{col_min}' y '{col_max}' "
+                            f"requeridas por el parámetro '{parametro}'."
+                        )
+                    rangos[parametro] = RangoParametro(
+                        minimo=float(fila[col_min]),
+                        maximo=float(fila[col_max]),
+                        unidad=LIMITES_FISICOS[parametro].unidad,
+                    )
+
+                especies[nombre] = Especie(nombre=nombre, rangos=rangos)
 
         return especies
 
@@ -60,10 +72,8 @@ class CsvEspecieRepository(EspecieRepository):
 
     def obtener_por_nombre(self, nombre: str) -> Optional[Especie]:
         """Busca una especie por nombre en el CSV."""
-        catalogo = self._obtener_catalogo()
-        return catalogo.get(nombre.strip().lower())
+        return self._obtener_catalogo().get(nombre.strip().lower())
 
     def obtener_todas(self) -> List[Especie]:
         """Obtiene la lista completa de especies del CSV."""
-        catalogo = self._obtener_catalogo()
-        return list(catalogo.values())
+        return list(self._obtener_catalogo().values())

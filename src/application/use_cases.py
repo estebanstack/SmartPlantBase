@@ -19,84 +19,62 @@ from src.domain.rules import EvaluadorDiagnostico
 
 class EvaluarDiagnosticoUseCase:
     """
-    Caso de uso: Evaluar el estado de salud de una planta.
-    Orquesta la validación de la entidad del dominio, la consulta de la especie
-    en la abstracción del repositorio y la evaluación de las reglas de negocio.
+    Caso de uso: evaluar el estado de salud de una planta.
+    Orquesta la construcción de la entidad de dominio, la consulta de la especie
+    a través de la abstracción del repositorio y la ejecución de las reglas.
     """
 
     def __init__(self, especie_repository: EspecieRepository):
         self._especie_repo = especie_repository
 
     def ejecutar(self, entrada: DiagnosticoInputDTO) -> DiagnosticoResponseDTO:
-        # 1. Transformación a entidad de dominio (RA6: la entidad valida límites físicos RF6)
-        medicion = Medicion(
-            especie=entrada.especie,
-            humedad=entrada.humedad,
-            luz=entrada.luz,
-            temperatura=entrada.temperatura,
-        )
+        # 1. Transformación a entidad de dominio (valida invariantes físicas, RF6)
+        medicion = Medicion(especie=entrada.especie, valores=entrada.valores)
 
         # 2. Búsqueda de la especie a través de la abstracción del repositorio (RA5)
         especie = self._especie_repo.obtener_por_nombre(medicion.especie)
         if not especie:
             raise EspecieNoSoportadaError(medicion.especie)
 
-        # 3. Ejecución del servicio de reglas de negocio en el dominio
+        # 3. Ejecución de las reglas de negocio en el dominio
         diagnostico = EvaluadorDiagnostico.evaluar(medicion, especie)
 
         # 4. Mapeo a DTO de salida
-        parametros_dto = [
-            ParametroDiagnosticoDTO(
-                nombre=p.nombre,
-                valor=p.valor,
-                unidad=p.unidad,
-                rango_optimo=p.rango_optimo,
-                estado=p.estado.value,
-            )
-            for p in diagnostico.parametros
-        ]
-
         return DiagnosticoResponseDTO(
             especie=diagnostico.especie,
             estado=diagnostico.estado.value,
-            parametros=parametros_dto,
+            parametros=[
+                ParametroDiagnosticoDTO(
+                    nombre=p.nombre,
+                    valor=p.valor,
+                    unidad=p.unidad,
+                    rango_optimo=p.rango_optimo,
+                    estado=p.estado.value,
+                )
+                for p in diagnostico.parametros
+            ],
             recomendaciones=diagnostico.recomendaciones,
         )
 
 
 class ListarEspeciesUseCase:
-    """
-    Caso de uso: Listar especies disponibles con sus rangos de referencia (RF5).
-    """
+    """Caso de uso: listar especies disponibles con sus rangos de referencia (RF5)."""
 
     def __init__(self, especie_repository: EspecieRepository):
         self._especie_repo = especie_repository
 
     def ejecutar(self) -> List[EspecieDTO]:
-        especies = self._especie_repo.obtener_todas()
-        resultado: List[EspecieDTO] = []
-
-        for esp in especies:
-            dto = EspecieDTO(
+        return [
+            EspecieDTO(
                 nombre=esp.nombre,
                 rangos={
-                    "humedad": RangoDetalleDTO(
-                        min=esp.rango_humedad.minimo,
-                        max=esp.rango_humedad.maximo,
-                        unidad=esp.rango_humedad.unidad,
-                    ),
-                    "luz": RangoDetalleDTO(
-                        min=esp.rango_luz.minimo,
-                        max=esp.rango_luz.maximo,
-                        unidad=esp.rango_luz.unidad,
-                    ),
-                    "temperatura": RangoDetalleDTO(
-                        min=esp.rango_temperatura.minimo,
-                        max=esp.rango_temperatura.maximo,
-                        unidad=esp.rango_temperatura.unidad,
-                    ),
+                    nombre: RangoDetalleDTO(
+                        min=rango.minimo,
+                        max=rango.maximo,
+                        unidad=rango.unidad,
+                    )
+                    for nombre, rango in esp.rangos.items()
                 },
             )
-            resultado.append(dto)
-
-        return resultado
+            for esp in self._especie_repo.obtener_todas()
+        ]

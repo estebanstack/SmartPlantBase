@@ -15,9 +15,7 @@ def test_evaluar_diagnostico_use_case_exitoso():
 
     dto_in = DiagnosticoInputDTO(
         especie="sansevieria",
-        humedad=30.0,
-        luz=500.0,
-        temperatura=22.0,
+        valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
     )
     resultado = use_case.ejecutar(dto_in)
 
@@ -34,9 +32,7 @@ def test_evaluar_diagnostico_use_case_especie_no_soportada():
 
     dto_in = DiagnosticoInputDTO(
         especie="bonsai_inexistente",
-        humedad=30.0,
-        luz=500.0,
-        temperatura=22.0,
+        valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
     )
     with pytest.raises(EspecieNoSoportadaError):
         use_case.ejecutar(dto_in)

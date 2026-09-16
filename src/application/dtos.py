@@ -3,16 +3,18 @@ Data Transfer Objects (DTOs) de la capa de aplicación.
 Desacoplan los modelos internos del dominio de los contratos de entrada/salida de la API.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 
 @dataclass(frozen=True)
 class DiagnosticoInputDTO:
-    """Datos validados que ingresan al caso de uso de diagnóstico."""
+    """
+    Datos ya validados en el borde que ingresan al caso de uso.
+    'valores' viaja indexado por nombre de parámetro para que agregar una
+    variable ambiental no modifique este contrato.
+    """
     especie: str
-    humedad: float
-    luz: float
-    temperatura: float
+    valores: Mapping[str, float]
 
 
 @dataclass(frozen=True)
@@ -36,7 +38,7 @@ class ParametroDiagnosticoDTO:
 
 @dataclass(frozen=True)
 class DiagnosticoResponseDTO:
-    """Estructura de salida del caso de uso de diagnóstico correspondiente a Anexo A."""
+    """Estructura de salida del caso de uso de diagnóstico (Anexo A)."""
     especie: str
     estado: str
     parametros: List[ParametroDiagnosticoDTO]
@@ -63,7 +65,7 @@ class RangoDetalleDTO:
 
 @dataclass(frozen=True)
 class EspecieDTO:
-    """Estructura de catálogo de especie correspondiente a RF5 y Anexo A."""
+    """Estructura de catálogo de especie (RF5 y Anexo A)."""
     nombre: str
     rangos: Dict[str, RangoDetalleDTO]
 
