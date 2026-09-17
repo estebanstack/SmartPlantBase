@@ -11,7 +11,14 @@ El siguiente diagrama representa la estructura de componentes del repositorio, o
 ```mermaid
 graph TD
     subgraph Frontend["Cliente Web Independiente (frontend/)"]
-        FE["Cliente Web SPA (HTML / CSS / JS)"]
+        F_APP["js/app.js (Orquestador)"]
+        F_UI["js/ui.js (PlantUI - Manipulación DOM)"]
+        F_API["js/api.js (PlantApi - Cliente HTTP)"]
+        F_CFG["js/config.js (API Base URL)"]
+
+        F_APP -->|"pide datos y envía eventos a"| F_API
+        F_APP -->|"entrega datos a"| F_UI
+        F_API -->|"lee dirección base de"| F_CFG
     end
 
     subgraph Presentation["Capa de Presentación (src/presentation/)"]
@@ -40,8 +47,12 @@ graph TD
         APP["app.py (create_app)"]
     end
 
-    %% Relaciones esenciales entre capas
-    FE -.->|"HTTP JSON / CORS (RA2, RA7)"| CTRL
+    subgraph Tests["Pruebas (tests/)"]
+        FAKE["doubles.py (FakeEspecieRepository)"]
+    end
+
+    %% Relaciones esenciales entre componentes
+    F_API -.->|"HTTP JSON / CORS (RA2, RA7)"| CTRL
     APP -->|"Inyecta dependencias en"| CTRL
     APP -->|"Instancia casos de uso en"| UC
     APP -->|"Instancia repositorio en"| REPO
@@ -51,6 +62,7 @@ graph TD
     UC -->|"Construye y valida"| ENT
     UC -->|"Consulta catálogo vía Puerto (DIP)"| PORT
     REPO -->|"Implementa Puerto (RA5, DIP)"| PORT
+    FAKE -->|"Implementa mismo Puerto (LSP, RA4)"| PORT
     REPO -->|"Lee tabla física"| CSV
 ```
 
@@ -64,14 +76,18 @@ Recorrido de ejecución completo para la operación de diagnóstico botánico (`
 sequenceDiagram
     autonumber
     actor Usuario
-    participant Front as Frontend (Cliente Web)
+    participant App as frontend/js/app.js
+    participant Api as frontend/js/api.js
     participant Ctrl as Presentación (controllers.py)
     participant UC as Aplicación (EvaluarDiagnosticoUseCase)
     participant Repo as Infraestructura (CsvEspecieRepository)
     participant Rules as Dominio (EvaluadorDiagnostico)
 
-    Usuario->>Front: Ingresa datos y solicita diagnóstico
-    Front->>Ctrl: POST /api/v1/diagnosticos (JSON)
+    Usuario->>App: Ingresa datos y solicita diagnóstico
+    App->>App: evento.preventDefault() (RA2: sin recarga)
+    App->>Api: evaluarDiagnostico(especie, valores)
+    activate Api
+    Api->>Ctrl: POST /api/v1/diagnosticos (fetch asíncrono JSON)
     
     activate Ctrl
     Ctrl->>Ctrl: Valida presencia y tipos numéricos en el borde (RA6)
@@ -93,10 +109,12 @@ sequenceDiagram
     UC-->>Ctrl: DiagnosticoResponseDTO
     deactivate UC
 
-    Ctrl-->>Front: HTTP 200 OK (JSON conforme Anexo A)
+    Ctrl-->>Api: HTTP 200 OK (JSON conforme Anexo A)
     deactivate Ctrl
 
-    Front-->>Usuario: Muestra estado, parámetros y recomendaciones sin recargar (RA2)
+    Api-->>App: Retorna objeto de diagnóstico deserializado
+    deactivate Api
+    App-->>Usuario: Actualiza UI con estado, parámetros y recomendaciones (RA2)
 ```
 
 ---
