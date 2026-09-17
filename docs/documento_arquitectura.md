@@ -1,75 +1,57 @@
 # Documento de Arquitectura de Software
 ## Sistema de Diagnóstico del Estado de Plantas (Matera Inteligente)
-**Semestre 2026-03**
+**Semestre 2026-2**
 
 ---
 
 ## 1. Diagrama de Paquetes / Componentes
 
-El siguiente diagrama representa de manera fidedigna la estructura real de directorios y componentes del repositorio. Cada módulo gráfico se corresponde uno a uno con los archivos y paquetes implementados en el código fuente.
+El siguiente diagrama representa la estructura de componentes del repositorio, organizada en un cliente web independiente y cuatro capas en el backend con la dirección de dependencias orientada hacia el dominio:
 
 ```mermaid
 graph TD
     subgraph Frontend["Cliente Web Independiente (frontend/)"]
-        F1["index.html"]
-        F2["css/style.css"]
-        F3["js/config.js (dirección del backend)"]
-        F4["js/api.js (PlantApi - único que conoce HTTP)"]
-        F5["js/ui.js (PlantUI - único que toca el DOM)"]
-        F6["js/app.js (orquestación)"]
+        FE["Cliente Web SPA (HTML / CSS / JS)"]
     end
 
     subgraph Presentation["Capa de Presentación (src/presentation/)"]
-        P1["controllers.py (crear_api_blueprint)"]
-        P2["error_handlers.py (registrar_manejadores_error)"]
+        CTRL["controllers.py (REST API /api/v1)"]
+        ERR["error_handlers.py (Mapeo de errores RF6)"]
     end
 
     subgraph Application["Capa de Aplicación (src/application/)"]
-        A1["use_cases.py (EvaluarDiagnosticoUseCase, ListarEspeciesUseCase)"]
-        A2["dtos.py (DiagnosticoInputDTO, DiagnosticoResponseDTO, EspecieDTO)"]
+        UC["use_cases.py (EvaluarDiagnosticoUseCase, ListarEspeciesUseCase)"]
+        DTO["dtos.py (Input / Response DTOs)"]
     end
 
     subgraph Domain["Capa de Dominio (src/domain/)"]
-        D1["entities.py (Medicion, Especie, RangoParametro, Diagnostico, LIMITES_FISICOS)"]
-        D2["rules.py (EvaluadorDiagnostico)"]
-        D3["exceptions.py (DominioError, EspecieNoSoportadaError, ParametroInvalidoError)"]
-        D4["repositories.py (EspecieRepository - Interfaz / Puerto)"]
+        ENT["entities.py (Medicion, Especie, LIMITES_FISICOS)"]
+        RULES["rules.py (EvaluadorDiagnostico)"]
+        PORT["repositories.py (EspecieRepository - Interfaz / Puerto)"]
+        EXC["exceptions.py (DominioError)"]
     end
 
     subgraph Infrastructure["Capa de Infraestructura (src/infrastructure/)"]
-        I1["repositories/csv_especie_repository.py (CsvEspecieRepository)"]
-        DATA[("data/especies_referencia.csv")]
+        REPO["repositories/csv_especie_repository.py (CsvEspecieRepository)"]
+        CSV[("data/especies_referencia.csv")]
     end
 
     subgraph EntryPoint["Punto de Entrada y Ensamblado"]
-        ROOT["app.py (create_app)"]
+        APP["app.py (create_app)"]
     end
 
-    subgraph Tests["Pruebas (tests/)"]
-        T1["doubles.py (FakeEspecieRepository)"]
-        T2["test_domain_rules.py"]
-    end
-
-    %% Relaciones de consumo y dependencia
-    F4 -.->|"HTTP JSON (CORS)"| P1
-    F6 -->|"pide datos a"| F4
-    F6 -->|"entrega datos a"| F5
-    F4 -->|"lee la URL de"| F3
-    ROOT -->|"Ensambla e inyecta dependencias"| P1
-    ROOT -->|"Instancia"| I1
-    ROOT -->|"Instancia"| A1
-    P1 -->|"Invoca con DTOs de entrada"| A1
-    P1 -->|"Mapea excepciones a JSON"| P2
-    A1 -->|"Depende del Puerto Abstracto (DIP)"| D4
-    A1 -->|"Ejecuta reglas con Entidades"| D2
-    A1 -->|"Instancia entidades de"| D1
-    A1 -->|"Captura excepciones de"| D3
-    D2 -->|"Evalúa invariantes de"| D1
-    I1 -->|"Implementa el Puerto de Dominio (DIP)"| D4
-    T1 -->|"Implementa el mismo Puerto (LSP)"| D4
-    T2 -->|"Sustituye la infraestructura por"| T1
-    I1 -->|"Lee archivo físico"| DATA
-    I1 -->|"Crea instancias de"| D1
+    %% Relaciones esenciales entre capas
+    FE -.->|"HTTP JSON / CORS (RA2, RA7)"| CTRL
+    APP -->|"Inyecta dependencias en"| CTRL
+    APP -->|"Instancia casos de uso en"| UC
+    APP -->|"Instancia repositorio en"| REPO
+    CTRL -->|"Invoca con DTOs (RA6)"| UC
+    CTRL -.->|"Captura y delega en"| ERR
+    UC -->|"Ejecuta reglas con"| RULES
+    UC -->|"Construye y valida"| ENT
+    UC -->|"Consulta catálogo vía Puerto (DIP)"| PORT
+    REPO -->|"Implementa Puerto (RA5, DIP)"| PORT
+    REPO -->|"Lee tabla física"| CSV
 ```
 
 ---
@@ -82,73 +64,54 @@ Recorrido de ejecución completo para la operación de diagnóstico botánico (`
 sequenceDiagram
     autonumber
     actor Usuario
-    participant App as frontend/js/app.js
-    participant Api as frontend/js/api.js
-    participant Ui as frontend/js/ui.js
-    participant Ctrl as src.presentation.controllers (evaluar_diagnostico)
-    participant UC as src.application.use_cases (EvaluarDiagnosticoUseCase)
-    participant Repo as src.infrastructure.repositories.csv_especie_repository (CsvEspecieRepository)
-    participant Rules as src.domain.rules (EvaluadorDiagnostico)
-    participant Ent as src.domain.entities (Medicion / Diagnostico)
+    participant Front as Frontend (Cliente Web)
+    participant Ctrl as Presentación (controllers.py)
+    participant UC as Aplicación (EvaluarDiagnosticoUseCase)
+    participant Repo as Infraestructura (CsvEspecieRepository)
+    participant Rules as Dominio (EvaluadorDiagnostico)
 
-    Usuario->>App: Ingresa datos y presiona "Evaluar diagnóstico"
-    App->>App: evento.preventDefault() [Evita recarga de página]
-    App->>Ui: leerFormulario()
-    Ui-->>App: {especie, valores}
-    App->>Api: evaluarDiagnostico(especie, valores)
-    Api->>Ctrl: POST /api/v1/diagnosticos {especie, humedad, luz, temperatura}
+    Usuario->>Front: Ingresa datos y solicita diagnóstico
+    Front->>Ctrl: POST /api/v1/diagnosticos (JSON)
     
     activate Ctrl
-    Ctrl->>Ctrl: Valida presencia y formato numérico de PARAMETROS_SOPORTADOS
+    Ctrl->>Ctrl: Valida presencia y tipos numéricos en el borde (RA6)
     Ctrl->>UC: ejecutar(DiagnosticoInputDTO)
     
     activate UC
-    UC->>Ent: Medicion(especie, valores={humedad, luz, temperatura})
-    activate Ent
-    Ent->>Ent: __post_init__() [Valida límites físicos terrestres]
-    Ent-->>UC: Instancia de Medicion válida
-    deactivate Ent
-
-    UC->>Repo: obtener_por_nombre(medicion.especie)
+    UC->>UC: Construye Medicion (valida límites físicos)
+    UC->>Repo: obtener_por_nombre(especie) [Vía Puerto EspecieRepository]
     activate Repo
-    Repo-->>UC: Instancia de Especie (con rangos óptimos)
+    Repo-->>UC: Especie (con rangos de referencia)
     deactivate Repo
 
     UC->>Rules: evaluar(medicion, especie)
     activate Rules
-    Rules->>Rules: Recorre especie.rangos y clasifica cada parámetro (BAJO / OPTIMO / ALTO)
-    Rules->>Rules: Deriva el estado global (SALUDABLE / EN_RIESGO / CRITICO)
-    Rules->>Rules: Genera recomendaciones textuales para desviaciones
-    Rules->>Ent: Diagnostico(especie, estado, parametros, recomendaciones)
-    Rules-->>UC: Instancia de Diagnostico
+    Rules->>Rules: Clasifica parámetros y deriva estado global (RF2, RF3, RF4)
+    Rules-->>UC: Diagnostico
     deactivate Rules
 
     UC-->>Ctrl: DiagnosticoResponseDTO
     deactivate UC
 
-    Ctrl-->>Api: HTTP 200 OK (JSON conforme Anexo A)
+    Ctrl-->>Front: HTTP 200 OK (JSON conforme Anexo A)
     deactivate Ctrl
 
-    Api-->>App: Diagnóstico ya normalizado (sin códigos HTTP)
-    App->>Ui: renderizarDiagnostico(diagnostico)
-    Ui-->>Usuario: Muestra estado, parámetros y recomendaciones sin recargar
+    Front-->>Usuario: Muestra estado, parámetros y recomendaciones sin recargar (RA2)
 ```
 
 ---
 
 ## 3. Tabla de Responsabilidades por Capa
 
-Cada capa tiene una única razón para cambiar y depende exclusivamente de capas más internas. Las prohibiciones de la tercera columna son verificables sobre el código: basta revisar los `import` de cada paquete.
+Cada capa tiene una única razón para cambiar y depende exclusivamente de capas más internas. Las prohibiciones de la tercera columna son verificables sobre el código mediante la inspección de los `import` de cada paquete.
 
 | Capa | Qué hace (Responsabilidades) | Qué tiene PROHIBIDO hacer | De qué depende |
 | :--- | :--- | :--- | :--- |
 | **Presentación** (`src/presentation/`) | Expone los endpoints REST (`POST /api/v1/diagnosticos`, `GET /api/v1/especies`), recibe peticiones HTTP, valida tipos básicos en el borde del sistema, mapea errores a respuestas JSON con código de estado HTTP adecuado (RF6). | Renderizar HTML o plantillas de servidor (**RA1**), contener lógica de negocio o reglas de salud vegetal, acceder a archivos o bases de datos directamente. | Capa de **Aplicación** (Casos de Uso y DTOs) y excepciones de **Dominio**. |
 | **Aplicación** (`src/application/`) | Orquesta los casos de uso (`EvaluarDiagnosticoUseCase`, `ListarEspeciesUseCase`), coordina la conversión entre DTOs y entidades de dominio, y consulta los datos mediante el puerto de repositorio. | Depender de frameworks web (Flask, Django), conocer detalles de persistencia (CSV, SQL), generar respuestas HTTP o conocer requests de red. | Capa de **Dominio** (Entidades, Excepciones, Reglas y Abstracciones de Repositorio). |
-| **Dominio** (`src/domain/`) | Encapsula las entidades puras (`Medicion`, `Especie`), declara en `LIMITES_FISICOS` el catálogo de variables ambientales soportadas y sus invariantes físicas (RF6), deriva el **estado global** de la planta (RF3), clasifica variables (RF2), genera recomendaciones botánicas (RF4) y declara el contrato abstracto `EspecieRepository` (**RA5**). | Importar bibliotecas web (Flask, FastAPI), importar bibliotecas de persistencia (CSV, SQLite, Pandas), depender de capas externas (**RA4**). El dominio es 100% puro y corre en cualquier entorno. | **De nada** (únicamente de la biblioteca estándar de Python: `typing`, `dataclasses`, `enum`, `abc`). |
+| **Dominio** (`src/domain/`) | Encapsula las entidades puras (`Medicion`, `Especie`), declara en `LIMITES_FISICOS` el catálogo de variables ambientales soportadas y sus invariantes físicas, deriva el **estado global** de la planta (RF3), clasifica variables (RF2), genera recomendaciones botánicas (RF4) y declara el contrato abstracto `EspecieRepository` (**RA5**). | Importar bibliotecas web (Flask, FastAPI), importar bibliotecas de persistencia (CSV, SQLite, Pandas), depender de capas externas (**RA4**). El dominio es 100% puro y corre en cualquier entorno. | **De nada** (únicamente de la biblioteca estándar de Python: `typing`, `dataclasses`, `enum`, `abc`). |
 | **Infraestructura** (`src/infrastructure/`) | Implementa los adaptadores concretos de persistencia (`CsvEspecieRepository`) leyendo la tabla de referencia del CSV, gestiona cachés de acceso a datos y realiza operaciones de E/S física. | Decidir si una planta está sana o enferma, alterar reglas de clasificación de negocio, exponer controladores HTTP. | Capa de **Dominio** (implementa la interfaz abstracta `EspecieRepository` y produce entidades `Especie`). |
-| **Frontend — acceso** (`frontend/js/api.js`, `config.js`) | Construye las peticiones asíncronas (`fetch`), interpreta los códigos de estado HTTP y traduce los errores de RF6 a un `ApiError` uniforme. | Tocar el DOM o conocer elementos de la página. | De `config.js` (única ubicación de la URL del backend) y del contrato JSON de la capa de Presentación. |
-| **Frontend — presentación** (`frontend/js/ui.js`) | Construye el selector de especies y los campos de medición a partir de RF5, pinta el diagnóstico y los errores, y devuelve lo que el usuario escribió (**RA2**). | Saber que existe HTTP: no conoce URLs, `fetch` ni códigos de estado. | Del DOM de `index.html` únicamente. |
-| **Frontend — orquestación** (`frontend/js/app.js`) | Une las dos anteriores: pide datos a `PlantApi` y se los entrega a `PlantUI`. | Alojar reglas de diagnóstico o validación de rangos biológicos (la autoridad es del backend). | De `api.js` y `ui.js`. |
+| **Frontend** (`frontend/`) | Cliente web SPA desacoplado (`config.js`, `api.js`, `ui.js`, `app.js`): construye el formulario dinámicamente desde el catálogo (RF5), realiza peticiones asíncronas (`fetch`) sin recargar la página (**RA2**), y presenta el diagnóstico y los errores al usuario. | Conocer lógica de negocio agronómica o validar rangos biológicos en el cliente (la autoridad es del backend). | De la URL del backend (`config.js`) y del contrato JSON expuesto por la Capa de Presentación. |
 
 ---
 
@@ -158,26 +121,26 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
 
 ### Single Responsibility Principle (SRP)
 - **Dónde se aplica:**
-  - `src/domain/rules.py` (Líneas 18–110): La clase `EvaluadorDiagnostico` tiene una única razón para cambiar: cambios en las reglas agronómicas de evaluación o en la derivación del estado global de la planta.
-  - `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 13–70): La clase `CsvEspecieRepository` solo cambia si varía el formato del archivo CSV o la estrategia de lectura del disco.
-  - `src/presentation/controllers.py` (Líneas 14–78): Los controladores solo cambian si se modifican los contratos de transporte REST o la serialización HTTP.
+  - `src/domain/rules.py` (Líneas 19–114): La clase `EvaluadorDiagnostico` tiene una única razón para cambiar: cambios en las reglas agronómicas de evaluación o en la derivación del estado global de la planta.
+  - `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 18–79): La clase `CsvEspecieRepository` solo cambia si varía el formato del archivo CSV o la estrategia de lectura del disco.
+  - `src/presentation/controllers.py` (Líneas 15–71): Los controladores solo cambian si se modifican los contratos de transporte REST o la serialización HTTP.
 - **Qué habría pasado de no aplicarlo:** Si una sola clase o script (`app.py` monolítico) leyera el CSV, calculara el estado y emitiera la respuesta HTTP, un cambio en el delimitador del archivo de texto rompería o exigiría re-probar la lógica de diagnóstico botánico y el endpoint web.
 
 ### Open/Closed Principle (OCP)
 - **Dónde se aplica:**
-  - `src/domain/entities.py` (Líneas 44–53): el dominio declara en `LIMITES_FISICOS` el catálogo de variables ambientales soportadas y deriva de él `PARAMETROS_SOPORTADOS`. Ese catálogo es el único punto de extensión.
-  - `src/domain/rules.py` (Líneas 67–100): `evaluar()` no enumera parámetros; itera sobre `especie.rangos` (L77), es decir, sobre las variables que la especie declare. `Especie.rangos` y `Medicion.valores` son colecciones indexadas por nombre (`src/domain/entities.py`, L68–81 y L83–129), no campos fijos.
-  - `src/infrastructure/.../csv_especie_repository.py` (Líneas 28, 34–37, 51–63): las columnas del CSV se derivan del nombre del parámetro (`{parametro}_min` / `{parametro}_max`); el diccionario `_PREFIJOS_CSV` sólo existe porque el Anexo B abrevia la temperatura como `temp`.
-  - `src/presentation/controllers.py` (Líneas 49–52): el controlador exige como obligatorios los parámetros que declara el dominio, no una lista escrita a mano.
-  - La abstracción `EspecieRepository` (`src/domain/repositories.py`) está abierta a nuevas implementaciones (PostgreSQL, MongoDB) sin modificar el código consumidor.
-- **Verificación:** agregar el pH del sustrato como cuarto parámetro requiere **dos archivos**: una entrada en `LIMITES_FISICOS` y dos columnas en `data/especies_referencia.csv`. El evaluador, los DTOs, los casos de uso y el controlador no se modifican. Lo comprobamos ejecutando el cambio: la API pasó a exigir, validar y clasificar `ph`, y el formulario web generó su campo automáticamente, sin tocar ningún otro archivo del backend ni del front.
-- **Tensión reconocida:** el *cálculo* queda cerrado a modificación, pero el *catálogo de textos* no. `EvaluadorDiagnostico._RECOMENDACIONES` (L31–46) no tiene entradas para un parámetro nuevo, de modo que el pH desviado recibe el mensaje genérico de `_generar_recomendacion()` (L59–64). Para darle una recomendación específica sí hay que editar `rules.py`. Lo aceptamos: la alternativa era externalizar los textos a un archivo de configuración, lo que habría metido una dependencia de I/O en el dominio y violado RA4 por resolver un problema que este corte no plantea.
-- **Qué habría pasado de no aplicarlo:** con `Especie` y `Medicion` modelados como tres campos fijos (`rango_humedad`, `rango_luz`, `rango_temperatura`), cada variable ambiental nueva obligaba a modificar siete archivos, incluido el evaluador: la clase que decide el estado de la planta tendría que cambiar por una razón ajena a las reglas de diagnóstico.
+  - `src/domain/entities.py` (Líneas 44–49): El dominio declara en `LIMITES_FISICOS` el catálogo de variables ambientales soportadas y deriva de él `PARAMETROS_SOPORTADOS` (L53).
+  - `src/domain/rules.py` (Líneas 67–100): `evaluar()` no enumera parámetros fijos; itera sobre `especie.rangos` (L77). Tanto `Especie.rangos` (L69–81) como `Medicion.valores` (L84–129) son colecciones indexadas por nombre (`Mapping`), no atributos estáticos acoplados.
+  - `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 28, 35–37, 51–63): Las columnas del CSV se derivan dinámicamente (`{parametro}_min` / `{parametro}_max`), requiriendo solo `_PREFIJOS_CSV` para la abreviación de temperatura del Anexo B.
+  - `src/presentation/controllers.py` (Líneas 49–52): El endpoint valida y exige los parámetros publicados dinámicamente por el dominio.
+  - `src/domain/repositories.py` (Líneas 10–24): La abstracción `EspecieRepository` permite incorporar nuevos orígenes de datos (PostgreSQL, dobles de prueba) sin modificar la capa consumidora.
+- **Verificación y Extensibilidad:** Agregar un nuevo parámetro ambiental (por ejemplo, pH del sustrato) requiere intervenir únicamente dos archivos: añadir la clave en `LIMITES_FISICOS` y agregar las columnas correspondientes en `data/especies_referencia.csv`. Ni el evaluador de reglas, ni los DTOs, ni los casos de uso, ni los controladores requieren modificación.
+- **Tensión de diseño reconocida:** El cálculo y flujo de evaluación quedan cerrados a modificación, pero el catálogo de textos específicos en `EvaluadorDiagnostico._RECOMENDACIONES` (L31–44) requeriría edición si se desea una redacción personalizada para el nuevo parámetro; de lo contrario, aplica la recomendación genérica de `_generar_recomendacion()` (L59–64). Se asumió conscientemente para no acoplar el dominio a persistencia externa de cadenas.
+- **Qué habría pasado de no aplicarlo:** Si `Especie` y `Medicion` usaran atributos fijos (`rango_humedad`, `rango_luz`, etc.), añadir una variable obligaría a modificar entidades, repositorios, evaluadores, casos de uso, DTOs y controladores, violando el cierre ante cambios.
 
 ### Liskov Substitution Principle (LSP)
 - **Dónde se aplica:**
-  - `src/domain/repositories.py` (Líneas 10–24) vs `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 13–70) y `tests/doubles.py` (Líneas 29–46): Tanto `CsvEspecieRepository` como `FakeEspecieRepository` implementan `EspecieRepository`.
-  - El caso de uso `EvaluarDiagnosticoUseCase` (`src/application/use_cases.py:L27-L46`) puede recibir cualquiera de las dos implementaciones indistintamente; ambas cumplen idénticos contratos de entrada/salida sin lanzar excepciones inesperadas que rompan el cliente.
+  - `src/domain/repositories.py` (Líneas 10–24) vs `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 18–79) y `tests/doubles.py` (Líneas 29–46): Tanto `CsvEspecieRepository` como `FakeEspecieRepository` implementan `EspecieRepository`.
+  - El caso de uso `EvaluarDiagnosticoUseCase` (`src/application/use_cases.py`, Líneas 20–57; constructor L27–28) recibe `EspecieRepository` y funciona idénticamente con la implementación física o con el doble en memoria, cumpliendo los mismos contratos de entrada y salida sin lanzar excepciones inesperadas que rompan el cliente.
 - **Qué habría pasado de no aplicarlo:** Si la implementación concreta de CSV lanzara excepciones específicas de archivo que la capa de aplicación tuviera que capturar con bloques `try/except csv.Error`, no se podría sustituir por un repositorio en base de datos o por un doble de pruebas sin modificar la capa de aplicación.
 
 ### Interface Segregation Principle (ISP)
@@ -188,9 +151,9 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
 
 ### Dependency Inversion Principle (DIP)
 - **Dónde se aplica:**
-  - Es la formalización de **RA5**. El caso de uso de aplicación (`src/application/use_cases.py:L27-L28`) depende de la abstracción `EspecieRepository` definida en `src/domain/repositories.py`.
-  - La implementación física `CsvEspecieRepository` vive en la capa de infraestructura (`src/infrastructure/repositories/csv_especie_repository.py:L13`) y depende de la interfaz de dominio.
-  - La composición final se realiza en `app.py` (Líneas 29–42), donde se inyecta la instancia concreta en el caso de uso.
+  - Es la formalización de **RA5**. El caso de uso de aplicación (`src/application/use_cases.py`, Líneas 27–28) depende de la abstracción `EspecieRepository` definida en `src/domain/repositories.py` (Líneas 10–24).
+  - La implementación física `CsvEspecieRepository` vive en la capa de infraestructura (`src/infrastructure/repositories/csv_especie_repository.py`, Línea 18) y depende de la interfaz de dominio.
+  - La composición final se realiza en `app.py` (Líneas 36–46), donde se inyecta la instancia concreta en el caso de uso y en el blueprint.
 - **Qué habría pasado de no aplicarlo:** El caso de uso importaría directamente `CsvEspecieRepository`. Esto haría imposible ejecutar pruebas unitarias del caso de uso sin tener el archivo físico en el disco duro y violaría la restricción **RA4**.
 
 ---
@@ -209,7 +172,7 @@ La tabla de referencia (`data/especies_referencia.csv`) cubre cinco especies, el
 
 **Fuente:** los valores fueron tomados íntegramente del **Anexo B del enunciado del proyecto de corte** (*Formato de la tabla de referencia*), sin modificación. No realizamos una verificación agronómica independiente de los rangos: el objeto de este corte es la separación entre la tabla y la lógica que la consume, no la exactitud botánica del dato. Esa decisión es en sí misma una demostración del diseño: corregir cualquiera de estos rangos contra una fuente especializada es editar un archivo CSV y no requiere tocar una sola línea de código.
 
-Las unidades no viven en el CSV: las declara el dominio en `LIMITES_FISICOS` (`src/domain/entities.py` L44–53) y la infraestructura las adjunta al construir cada `RangoParametro`.
+Las unidades no viven en el CSV: las declara el dominio en `LIMITES_FISICOS` (`src/domain/entities.py` Líneas 44–49) y la infraestructura las adjunta al construir cada `RangoParametro`.
 
 ---
 
@@ -283,7 +246,7 @@ Las unidades no viven en el CSV: las declara el dominio en `LIMITES_FISICOS` (`s
 * **Razón del descarte:** Si la validación reside solo en el front o en el controlador HTTP, al ingresar datos por MQTT desde el ESP32 o desde una prueba unitaria, el sistema podría procesar datos absurdos (como 500% de humedad o lux negativo). El dominio debe proteger su propia consistencia e invariantes independientemente de la vía de entrada.
 
 ### Decisión 4: Parámetros como Colección Indexada vs Campos Fijos en las Entidades
-* **Opción adoptada:** `Especie.rangos` y `Medicion.valores` son colecciones indexadas por nombre de parámetro (`Mapping[str, ...]`), y el dominio publica el catálogo de variables soportadas en `LIMITES_FISICOS` (`src/domain/entities.py` L44–53). El evaluador recorre lo que la especie declara.
+* **Opción adoptada:** `Especie.rangos` y `Medicion.valores` son colecciones indexadas por nombre de parámetro (`Mapping[str, ...]`), y el dominio publica el catálogo de variables soportadas en `LIMITES_FISICOS` (`src/domain/entities.py` Líneas 44–49). El evaluador recorre lo que la especie declara.
 * **Alternativa descartada:** Mantener tres atributos fijos por entidad (`humedad`, `luz`, `temperatura`), que era el diseño original del repositorio.
 * **Razón del descarte:** Con campos fijos, agregar una cuarta variable obligaba a modificar siete archivos, entre ellos `EvaluadorDiagnostico`, lo que contradecía nuestra propia afirmación de OCP. Con la colección son dos, y ninguno es el evaluador.
 * **Costo asumido:** se pierde el acceso por atributo (`medicion.humedad` pasa a `medicion.valor_de("humedad")`) y con él la detección de errores de tipeo en tiempo de escritura. Lo compensamos haciendo que `Medicion` valide en su constructor que cada clave exista en `LIMITES_FISICOS` (L104–108): un nombre inválido falla al construir la entidad, con el campo señalado, y no silenciosamente durante la evaluación.
