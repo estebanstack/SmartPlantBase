@@ -1,10 +1,9 @@
 """
 Pruebas unitarias de la capa de Dominio (evidencia de RA4 y del entregable d).
 Ejercitan las reglas de negocio sin levantar el servidor web y sin leer archivos
-ni bases de datos, usando un doble de prueba de la abstracción de RA5.
+ni bases de datos, usando el doble de prueba de tests/doubles.py.
 """
 import pytest
-from typing import Dict, List, Optional
 
 from src.domain.entities import (
     Diagnostico,
@@ -17,37 +16,7 @@ from src.domain.entities import (
 from src.domain.exceptions import ParametroInvalidoError
 from src.domain.repositories import EspecieRepository
 from src.domain.rules import EvaluadorDiagnostico
-
-
-def _especie(nombre: str, humedad, luz, temperatura) -> Especie:
-    """Constructor auxiliar para armar especies de prueba de forma legible."""
-    return Especie(
-        nombre=nombre,
-        rangos={
-            "humedad": RangoParametro(minimo=humedad[0], maximo=humedad[1], unidad="%"),
-            "luz": RangoParametro(minimo=luz[0], maximo=luz[1], unidad="lux"),
-            "temperatura": RangoParametro(minimo=temperatura[0], maximo=temperatura[1], unidad="°C"),
-        },
-    )
-
-
-class FakeEspecieRepository(EspecieRepository):
-    """
-    Doble de prueba en memoria de la abstracción EspecieRepository.
-    Permite probar el dominio de forma aislada, sin infraestructura ni archivos.
-    """
-
-    def __init__(self, catalogo: Optional[Dict[str, Especie]] = None):
-        self._catalogo = catalogo or {
-            "sansevieria": _especie("sansevieria", (20.0, 45.0), (200.0, 1500.0), (15.0, 29.0)),
-            "helecho": _especie("helecho", (60.0, 85.0), (150.0, 800.0), (16.0, 26.0)),
-        }
-
-    def obtener_por_nombre(self, nombre: str) -> Optional[Especie]:
-        return self._catalogo.get(nombre.strip().lower())
-
-    def obtener_todas(self) -> List[Especie]:
-        return list(self._catalogo.values())
+from tests.doubles import FakeEspecieRepository
 
 
 @pytest.fixture

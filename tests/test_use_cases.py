@@ -6,7 +6,7 @@ import pytest
 from src.application.dtos import DiagnosticoInputDTO
 from src.application.use_cases import EvaluarDiagnosticoUseCase, ListarEspeciesUseCase
 from src.domain.exceptions import EspecieNoSoportadaError
-from tests.test_domain_rules import FakeEspecieRepository
+from tests.doubles import FakeEspecieRepository
 
 
 def test_evaluar_diagnostico_use_case_exitoso():

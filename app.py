@@ -21,6 +21,10 @@ def create_app(ruta_csv: Optional[str] = None) -> Flask:
     """
     app = Flask(__name__)
 
+    # Preserva el orden de los parámetros declarado por el dominio en lugar de
+    # ordenar las claves alfabéticamente (afecta el orden del formulario web).
+    app.json.sort_keys = False
+
     # RA7: Habilitar CORS para permitir peticiones desde clientes en otros orígenes o puertos
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 

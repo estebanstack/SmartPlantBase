@@ -54,6 +54,7 @@ def registrar_manejadores_error(app: Flask) -> None:
 
     @app.errorhandler(500)
     def manejar_error_servidor_http(error):
+        app.logger.exception("Error interno no controlado", exc_info=error)
         cuerpo = {
             "error": "ERROR_INTERNO_SERVIDOR",
             "mensaje": "Ocurrió un error inesperado al procesar la solicitud.",
@@ -70,6 +71,9 @@ def registrar_manejadores_error(app: Flask) -> None:
                 "detalle": {"codigo": error.code},
             }), error.code
 
+        # Se registra el traceback completo para diagnóstico, pero la respuesta
+        # al cliente mantiene el cuerpo uniforme y no filtra detalles internos.
+        app.logger.exception("Excepción no controlada", exc_info=error)
         cuerpo = {
             "error": "ERROR_INTERNO_SERVIDOR",
             "mensaje": "Ocurrió un error inesperado en el servidor.",

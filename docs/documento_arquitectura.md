@@ -45,6 +45,11 @@ graph TD
         ROOT["app.py (create_app)"]
     end
 
+    subgraph Tests["Pruebas (tests/)"]
+        T1["doubles.py (FakeEspecieRepository)"]
+        T2["test_domain_rules.py"]
+    end
+
     %% Relaciones de consumo y dependencia
     F4 -.->|"HTTP JSON (CORS)"| P1
     F6 -->|"pide datos a"| F4
@@ -61,6 +66,8 @@ graph TD
     A1 -->|"Captura excepciones de"| D3
     D2 -->|"Evalúa invariantes de"| D1
     I1 -->|"Implementa el Puerto de Dominio (DIP)"| D4
+    T1 -->|"Implementa el mismo Puerto (LSP)"| D4
+    T2 -->|"Sustituye la infraestructura por"| T1
     I1 -->|"Lee archivo físico"| DATA
     I1 -->|"Crea instancias de"| D1
 ```
@@ -169,7 +176,7 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
 
 ### Liskov Substitution Principle (LSP)
 - **Dónde se aplica:**
-  - `src/domain/repositories.py` (Líneas 10–24) vs `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 13–70) y `tests/test_domain_rules.py` (Líneas 22–46): Tanto `CsvEspecieRepository` como `FakeEspecieRepository` implementan `EspecieRepository`.
+  - `src/domain/repositories.py` (Líneas 10–24) vs `src/infrastructure/repositories/csv_especie_repository.py` (Líneas 13–70) y `tests/doubles.py` (Líneas 29–46): Tanto `CsvEspecieRepository` como `FakeEspecieRepository` implementan `EspecieRepository`.
   - El caso de uso `EvaluarDiagnosticoUseCase` (`src/application/use_cases.py:L27-L46`) puede recibir cualquiera de las dos implementaciones indistintamente; ambas cumplen idénticos contratos de entrada/salida sin lanzar excepciones inesperadas que rompan el cliente.
 - **Qué habría pasado de no aplicarlo:** Si la implementación concreta de CSV lanzara excepciones específicas de archivo que la capa de aplicación tuviera que capturar con bloques `try/except csv.Error`, no se podría sustituir por un repositorio en base de datos o por un doble de pruebas sin modificar la capa de aplicación.
 
@@ -188,7 +195,25 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
 
 ---
 
-## 5. Plan de Evolución
+## 5. Tabla de Referencia por Especie: Contenido y Fuente
+
+La tabla de referencia (`data/especies_referencia.csv`) cubre cinco especies, el mínimo exigido, con el formato del Anexo B del enunciado:
+
+| Especie | Humedad (%) | Luz (lux) | Temperatura (°C) |
+| :--- | :--- | :--- | :--- |
+| sansevieria | 20 – 45 | 200 – 1500 | 15 – 29 |
+| potos | 40 – 70 | 300 – 1200 | 18 – 30 |
+| suculenta | 10 – 30 | 800 – 2500 | 15 – 32 |
+| helecho | 60 – 85 | 150 – 800 | 16 – 26 |
+| lavanda | 25 – 50 | 1000 – 3000 | 15 – 30 |
+
+**Fuente:** los valores fueron tomados íntegramente del **Anexo B del enunciado del proyecto de corte** (*Formato de la tabla de referencia*), sin modificación. No realizamos una verificación agronómica independiente de los rangos: el objeto de este corte es la separación entre la tabla y la lógica que la consume, no la exactitud botánica del dato. Esa decisión es en sí misma una demostración del diseño: corregir cualquiera de estos rangos contra una fuente especializada es editar un archivo CSV y no requiere tocar una sola línea de código.
+
+Las unidades no viven en el CSV: las declara el dominio en `LIMITES_FISICOS` (`src/domain/entities.py` L44–53) y la infraestructura las adjunta al construir cada `RangoParametro`.
+
+---
+
+## 6. Plan de Evolución
 
 ### Escenario A: Mediciones llegan por MQTT desde un ESP32
 * **Qué componentes se agregan:**
@@ -240,7 +265,7 @@ El criterio que guio el diseño es que un cambio en el mecanismo de entrada (HTT
 
 ---
 
-## 6. Decisiones de Diseño y Alternativas Descartadas
+## 7. Decisiones de Diseño y Alternativas Descartadas
 
 ### Decisión 1: Abstracción de Repositorio en Dominio vs Carga Directa de Datos en Casos de Uso
 * **Opción adoptada:** Declarar la interfaz abstracta `EspecieRepository` en `src/domain/repositories.py` e implementarla en `src/infrastructure/repositories/csv_especie_repository.py` (Inversión de Dependencias - DIP / RA5).
