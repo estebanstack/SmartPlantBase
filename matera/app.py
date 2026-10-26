@@ -10,6 +10,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
+from matera.adaptadores.entrada.api_dispositivos import crear_api_dispositivos_blueprint
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.adaptadores.salida.historial_bd import BdHistorialYPlantasAdapter
@@ -168,6 +169,10 @@ def create_app(
         puerto_validacion=servicio_dominio,
         puerto_consultas=servicio_dominio,
         puerto_auth=servicio_dominio,
+        emisor_jwt=emisor_token,
+    ))
+    app.register_blueprint(crear_api_dispositivos_blueprint(
+        puerto_registro=servicio_dominio,
         emisor_jwt=emisor_token,
     ))
 
