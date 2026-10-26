@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="100%" height="auto" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <style>
+      .bg-card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.2; rx: 6px; }
+      .bg-zone-entry { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4,3; rx: 8px; }
+      .bg-zone-exit { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 4,3; rx: 8px; }
+      .bg-core { fill: #f1f5f9; stroke: #0f172a; stroke-width: 2; rx: 10px; }
+      .bg-port-in { fill: #e0e7ff; stroke: #4f46e5; stroke-width: 1.2; rx: 4px; }
+      .bg-port-out { fill: #fef3c7; stroke: #d97706; stroke-width: 1.2; rx: 4px; }
+      .bg-sec { fill: #fef2f2; stroke: #dc2626; stroke-width: 1.2; rx: 4px; }
+      .title-zone { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; fill: #475569; }
+      .title-core { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; fill: #0f172a; }
+      .card-title { font-size: 11px; font-weight: 700; fill: #1e293b; }
+      .card-sub { font-size: 9.5px; font-weight: 600; fill: #475569; }
+      .card-text { font-size: 8.5px; fill: #334155; }
+      .badge-in { font-size: 9px; font-weight: 700; fill: #3730a3; }
+      .badge-out { font-size: 9px; font-weight: 700; fill: #92400e; }
+      .arrow { stroke: #64748b; stroke-width: 1.4; fill: none; marker-end: url(#arrow-head); }
+      .arrow-accent { stroke: #4f46e5; stroke-width: 1.5; fill: none; marker-end: url(#arrow-head-accent); }
+    </style>
+    <marker id="arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+    </marker>
+    <marker id="arrow-head-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#4f46e5" />
+    </marker>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="100%" height="100%" fill="#ffffff" />
+
+  <!-- ZONE 1: ADAPTADORES DE ENTRADA (DRIVING) -->
+  <rect x="15" y="15" width="230" height="390" class="bg-zone-entry" />
+  <text x="30" y="36" class="title-zone">Adaptadores de Entrada (Driving)</text>
+
+  <!-- Card 1: api_front.py -->
+  <rect x="25" y="48" width="210" height="105" class="bg-card" />
+  <text x="35" y="66" class="card-title">api_front.py (REST Flask)</text>
+  <text x="35" y="80" class="card-sub">• Interfaz Web y Casos de Uso Front</text>
+  <text x="35" y="96" class="card-text">POST /api/v1/diagnosticos (R1)</text>
+  <text x="35" y="110" class="card-text">POST /api/auth/login · registro (R7)</text>
+  <text x="35" y="124" class="card-text">GET  /api/plantas/{id}/estado (R5, R6)</text>
+  <text x="35" y="138" class="card-text">GET  /api/plantas/{id}/historial</text>
+
+  <!-- Card 2: api_dispositivos.py -->
+  <rect x="25" y="162" width="210" height="85" class="bg-card" />
+  <text x="35" y="180" class="card-title">api_dispositivos.py (REST)</text>
+  <text x="35" y="194" class="card-sub">• Telemetría Sensores IoT (ESP32)</text>
+  <text x="35" y="210" class="card-text">POST /api/dispositivos/{id}/lecturas (R2)</text>
+  <text x="35" y="224" class="card-text">Alimentado por simulador_esp32.py (R3)</text>
+  <text x="35" y="238" class="card-text">Exige token con scope="dispositivo"</text>
+
+  <!-- Card 3: seguridad_jwt.py (Perímetro) -->
+  <rect x="25" y="256" width="210" height="75" class="bg-sec" />
+  <text x="35" y="274" class="card-title" fill="#991b1b">seguridad_jwt.py (Borde)</text>
+  <text x="35" y="288" class="card-text">• Decoradores: @requiere_jwt_usuario</text>
+  <text x="35" y="302" class="card-text">  y @requiere_jwt_dispositivo</text>
+  <text x="35" y="316" class="card-text">• Valida firma y segrega por 'scope'</text>
+
+  <!-- Card 4: Tests unitarios -->
+  <rect x="25" y="340" width="210" height="55" class="bg-card" />
+  <text x="35" y="358" class="card-title">tests/test_dominio.py</text>
+  <text x="35" y="372" class="card-sub">• Pruebas unitarias de dominio</text>
+  <text x="35" y="386" class="card-text">Usa dobles en memoria (tests/fakes.py)</text>
+
+  <!-- ZONE 2: NÚCLEO HEXAGONAL DE DOMINIO -->
+  <rect x="280" y="15" width="360" height="390" class="bg-core" />
+  <text x="350" y="38" class="title-core">Núcleo de Dominio y Puertos</text>
+
+  <!-- Sub-block: Puertos de Entrada -->
+  <rect x="295" y="52" width="330" height="72" class="bg-port-in" />
+  <text x="305" y="68" class="badge-in">PUERTOS DE ENTRADA (matera/puertos/entrada.py)</text>
+  <text x="305" y="84" class="card-text">• ValidarLecturaPort (R1: validación catálogo botánico)</text>
+  <text x="305" y="97" class="card-text">• RegistrarLecturaPort (R2: telemetría sensor y evaluación)</text>
+  <text x="305" y="110" class="card-text">• ConsultarEstadoPort (R5, R6) · AutenticarUsuarioPort (R7)</text>
+
+  <!-- Sub-block: Dominio Puro -->
+  <rect x="295" y="132" width="330" height="152" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2" rx="6px" />
+  <text x="305" y="150" class="card-title">Lógica de Negocio Pura (matera/dominio/)</text>
+  <text x="305" y="165" class="card-sub">Entidades (modelo.py):</text>
+  <text x="315" y="179" class="card-text">Lectura · Especie · Planta · Usuario · Diagnostico</text>
+  <text x="305" y="196" class="card-sub">Servicios y Reglas Botánicas (validador.py):</text>
+  <text x="315" y="210" class="card-text">• ValidadorDeEstado: evaluación según límites y rangos</text>
+  <text x="315" y="224" class="card-text">• ServicioMateraDominio: orquestador de casos de uso</text>
+  <text x="315" y="238" class="card-text">• Regla de Propiedad (R7): planta.pertenece_a(usuario_id)</text>
+  <text x="305" y="258" class="card-sub" fill="#047857">Invariante: 0 imports de Flask, SQL, CSV, JSON ni PyJWT</text>
+  <text x="305" y="272" class="card-text" fill="#64748b">Excepciones de dominio: AccesoNoAutorizado, EspecieNoSoportada...</text>
+
+  <!-- Sub-block: Puertos de Salida -->
+  <rect x="295" y="292" width="330" height="100" class="bg-port-out" />
+  <text x="305" y="308" class="badge-out">PUERTOS DE SALIDA (matera/puertos/salida.py)</text>
+  <text x="305" y="324" class="card-text">• TablaReferenciaPort (R4: consulta rangos óptimos)</text>
+  <text x="305" y="338" class="card-text">• HistorialLecturasPort (R5: persistencia y última lectura)</text>
+  <text x="305" y="352" class="card-text">• UsuariosPlantasPort (R7: consulta y relación planta-usuario)</text>
+  <text x="305" y="366" class="card-text">• EmisorTokenPort (R7: abstracción para emisión de tokens)</text>
+  <text x="305" y="382" class="card-text" fill="#b45309">El dominio declara qué necesita; la infraestructura lo implementa</text>
+
+  <!-- ZONE 3: ADAPTADORES DE SALIDA (DRIVEN) -->
+  <rect x="675" y="15" width="230" height="390" class="bg-zone-exit" />
+  <text x="690" y="36" class="title-zone">Adaptadores de Salida (Driven)</text>
+
+  <!-- Card 5: Tabla Referencia CSV / BD (R4) -->
+  <rect x="685" y="48" width="210" height="105" class="bg-card" />
+  <text x="695" y="66" class="card-title">tabla_csv.py / tabla_bd.py</text>
+  <text x="695" y="80" class="card-sub">• Implementan TablaReferenciaPort (R4)</text>
+  <text x="695" y="96" class="card-text">CsvTablaReferenciaAdapter (CSV)</text>
+  <text x="695" y="110" class="card-text">BdTablaReferenciaAdapter (SQLite)</text>
+  <text x="695" y="126" class="card-text">Intercambiables por configuración</text>
+  <text x="695" y="140" class="card-text">mediante variable TABLA_REFERENCIA_DRIVER</text>
+
+  <!-- Card 6: Historial y Plantas BD (R5, R7) -->
+  <rect x="685" y="162" width="210" height="110" class="bg-card" />
+  <text x="695" y="180" class="card-title">historial_bd.py (SQLite)</text>
+  <text x="695" y="194" class="card-sub">• Implementa:</text>
+  <text x="695" y="208" class="card-text">  - HistorialLecturasPort (R5)</text>
+  <text x="695" y="222" class="card-text">  - UsuariosPlantasPort (R7)</text>
+  <text x="695" y="238" class="card-text">BdHistorialYPlantasAdapter:</text>
+  <text x="695" y="252" class="card-text">Persistencia relacional de lecturas,</text>
+  <text x="695" y="266" class="card-text">diagnósticos, usuarios y dispositivos</text>
+
+  <!-- Card 7: Emisor JWT (R7) -->
+  <rect x="685" y="282" width="210" height="80" class="bg-card" />
+  <text x="695" y="300" class="card-title">emisor_jwt.py (PyJWT)</text>
+  <text x="695" y="314" class="card-sub">• Implementa EmisorTokenPort (R7)</text>
+  <text x="695" y="330" class="card-text">JwtEmisorTokenAdapter:</text>
+  <text x="695" y="344" class="card-text">Único punto que firma tokens JWT</text>
+  <text x="695" y="358" class="card-text">con HS256 y claims segregados</text>
+
+  <!-- Card 8: Composition Root (app.py) -->
+  <rect x="685" y="370" width="210" height="28" fill="#e2e8f0" stroke="#64748b" stroke-width="1" rx="4px" />
+  <text x="695" y="388" class="card-title" font-size="10px">matera/app.py: Punto de Composición</text>
+
+  <!-- ARROWS / CONNECTORS -->
+  <!-- Entrada -> Puertos Entrada -->
+  <path d="M 235 90 L 290 85" class="arrow" />
+  <path d="M 235 195 L 290 95" class="arrow-accent" />
+  <path d="M 235 365 L 290 105" class="arrow" />
+
+  <!-- Puertos Salida -> Adaptadores Salida -->
+  <path d="M 625 320 L 680 100" class="arrow" />
+  <path d="M 625 345 L 680 215" class="arrow" />
+  <path d="M 625 365 L 680 320" class="arrow" />
+</svg>

@@ -19,7 +19,10 @@ htmlcov/
 *.db
 
 
-# IDE & Editor files
+# QA Rendered artifacts
+qa_rendered_*/
+docs/qa_rendered_*/
+
 .vscode/
 .idea/
 *.swp

@@ -76,12 +76,12 @@ El sistema lee las especies desde la tabla SQLite `especies` sin modificar ni un
 2. Haz clic en el botón rojo **"🚨 Probar acceso no autorizado a planta de Ana"**.
 3. El frontend muestra la notificación de rechazo con **HTTP 403 Forbidden (`ACCESO_DENEGADO`)**, evidenciando que la regla de propiedad reside en el núcleo de dominio: `planta.pertenece_a(usuario_id)`.
 
-### Demostración 4: Verificación de la Prueba de Cambio (15% de la Rúbrica)
-Para demostrar al profesor que el Commit 4 no modificó el dominio:
+### Demostración 4: Verificación de la Prueba de Cambio (Invarianza del Dominio)
+Para demostrar al profesor que el commit del sensor ESP32 no modificó el dominio:
 ```bash
 git show 8c4b6d8 --stat
 ```
-Verás que sólo se crearon `api_dispositivos.py`, `simulador_esp32.py`, su prueba y la línea de registro en `matera/app.py`. **Cero (0) archivos modificados en `matera/dominio/` y `matera/puertos/`.**
+Verás que solo se crearon `api_dispositivos.py`, `simulador_esp32.py`, su prueba y la línea de registro en `matera/app.py`. **Cero (0) archivos modificados en `matera/dominio/` y `matera/puertos/`.**
 
 ---
 
