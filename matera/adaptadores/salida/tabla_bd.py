@@ -82,8 +82,8 @@ def inicializar_bd(ruta_bd: str | Path) -> None:
         """, especies_semilla)
 
         # Semilla de usuarios y plantas de demostración (clave: clave123)
-        # SHA256('clave123') = ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f
-        pwd_hash = "ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f"
+        import hashlib
+        pwd_hash = hashlib.sha256(b"clave123").hexdigest()
         usuarios_semilla = [
             ("usr-ana", "Ana María", "ana@matera.edu.co", pwd_hash),
             ("usr-carlos", "Carlos Ruiz", "carlos@matera.edu.co", pwd_hash),

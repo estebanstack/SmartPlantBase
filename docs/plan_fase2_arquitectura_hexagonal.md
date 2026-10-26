@@ -3,7 +3,7 @@
 **Asignatura:** Arquitectura de Software · Semestre 2026-3 · Universidad Sergio Arboleda  
 **Modalidad:** Proyecto en Grupo · Entrega 2 (Del sensor al dominio: puertos y adaptadores)  
 **Framework y Lenguaje:** Python 3.14 / Flask  
-**Documento Base Oficial:** [enunciado_proyecto_fase2_arquitectura.pdf](file:///home/esteban/Documents/COLLEGE/2026-2/ARQUIT/SmartPlantBase/enunciado_proyecto_fase2_arquitectura.pdf)
+**Documento Base Oficial:** `enunciado_proyecto_fase2_arquitectura.pdf` (Proyecto Matera · Fase 2)
 
 ---
 
@@ -86,74 +86,37 @@ Sometemos la arquitectura al **Protocolo de los 4 Lentes** y al **Anti-Overengin
 
 ### 4.1 Diagrama Hexagonal Propio (Alineado con Clases, Puertos y Adaptadores Reales)
 
-```mermaid
-flowchart LR
-    subgraph ENTRADA["ADAPTADORES DE ENTRADA (Impulsan la aplicación)"]
-        FRONT_AD["🌐 api_front.py\n(Controlador REST del Front + Auth)"]
-        DISP_AD["📟 api_dispositivos.py\n(POST /api/dispositivos/{id}/lecturas)"]
-        JWT_DEC["🔐 seguridad_jwt.py\n(Decoradores verifican JWT y extraen ID)"]
-        TESTS_IN["🧪 tests/test_dominio.py\n(Pruebas unitarias invocan dominio directo)"]
-    end
-
-    subgraph HEXAGONO["NÚCLEO HEXAGONAL (matera/dominio/ y matera/puertos/)"]
-        direction LR
-        subgraph P_IN["Puertos de Entrada (puertos/entrada.py)"]
-            P1["📥 RegistrarLecturaPort"]
-            P2["📥 ConsultarEstadoPort"]
-            P3_IN["📥 ValidarLecturaPort"]
-            P4_IN["📥 AutenticarUsuarioPort"]
-        end
-
-        subgraph DOM["Dominio Puro (dominio/modelo.py · validador.py)"]
-            VAL["🌿 ValidadorDeEstado\n(Reglas botánicas + Propiedad de planta)\nLectura · Especie · EstadoPlanta · Planta · Usuario\n(Sin framework, ni HTTP, ni JWT, ni BD)"]
-        end
-
-        subgraph P_OUT["Puertos de Salida (puertos/salida.py)"]
-            PO1["📤 TablaReferenciaPort"]
-            PO2["📤 HistorialLecturasPort"]
-            PO3["📤 UsuariosPlantasPort"]
-            PO4["📤 EmisorTokenPort"]
-        end
-    end
-
-    subgraph SALIDA["ADAPTADORES DE SALIDA (La aplicación los usa)"]
-        CSV_AD["📄 tabla_csv.py\n(CsvTablaReferenciaAdapter)"]
-        BD_TAB["🗄️ tabla_bd.py\n(BdTablaReferenciaAdapter)"]
-        BD_HIST["📈 historial_bd.py\n(BdHistorialLecturasAdapter\n+ BdUsuariosPlantasAdapter)"]
-        JWT_OUT["🔑 emisor_jwt.py\n(JwtEmisorTokenAdapter - PyJWT)"]
-        FAKES["🎭 tests/fakes.py\n(Dobles de prueba en memoria)"]
-    end
-
-    %% Conexiones desde la izquierda (Entrada -> Puertos de Entrada)
-    FRONT_AD --> JWT_DEC
-    DISP_AD --> JWT_DEC
-    JWT_DEC -->|"usuario_id verificado"| P2
-    JWT_DEC -->|"dispositivo_id verificado"| P1
-    FRONT_AD -->|"Lectura manual (R1)"| P3_IN
-    FRONT_AD -->|"Credenciales login/registro"| P4_IN
-    TESTS_IN --> P1
-    TESTS_IN --> P2
-    TESTS_IN --> P3_IN
-
-    %% Conexiones internas del hexágono
-    P1 --> VAL
-    P2 --> VAL
-    P3_IN --> VAL
-    P4_IN --> VAL
-    VAL --> PO1
-    VAL --> PO2
-    VAL --> PO3
-    VAL --> PO4
-
-    %% Conexiones hacia la derecha (Adaptadores implementan Puertos de Salida)
-    CSV_AD -.->|"implementa"| PO1
-    BD_TAB -.->|"implementa"| PO1
-    BD_HIST -.->|"implementa"| PO2
-    BD_HIST -.->|"implementa"| PO3
-    JWT_OUT -.->|"implementa"| PO4
-    FAKES -.->|"implementa (tests)"| PO1
-    FAKES -.->|"implementa (tests)"| PO2
-    FAKES -.->|"implementa (tests)"| PO3
+```
+  ENTRADA (Impulsan la aplicación)             NÚCLEO HEXAGONAL              SALIDA (La aplicación los usa)
+┌──────────────────────────────────┐    ┌────────────────────────────┐    ┌──────────────────────────────────┐
+│ api_front.py                     │    │ PUERTOS DE ENTRADA         │    │ tabla_csv.py                     │
+│ • POST /api/v1/diagnosticos (R1) ├───►│ • ValidarLecturaPort       │    │ (CsvTablaReferenciaAdapter)      │
+│ • POST /api/auth/registro   (R7) ├───►│ • AutenticarUsuarioPort    │    └─────────────────▲────────────────┘
+│ • POST /api/auth/login      (R7) │    │ • ConsultarEstadoPort      │                      │ implementa
+│ • GET  /api/plantas/{id}/.. (R5) ├─┐  │ • RegistrarLecturaPort     │    ┌─────────────────┴────────────────┐
+└──────────────────────────────────┘ │  ├────────────────────────────┤    │ TablaReferenciaPort         (P3) │
+                                     │  │                            ├───►├──────────────────────────────────┤
+┌──────────────────────────────────┐ │  │       DOMINIO PURO         │    │ tabla_bd.py                      │
+│ seguridad_jwt.py                 │◄┼─┐│                            │    │ (BdTablaReferenciaAdapter)       │
+│ • @requiere_jwt_usuario          ├─┼─┼►│  modelo.py:               │    └──────────────────────────────────┘
+│   (entrega usuario_id, no token) │ │ ││  • Lectura, Especie        │
+│ • @requiere_jwt_dispositivo      │ │ ││  • EstadoPlanta, Planta    │    ┌──────────────────────────────────┐
+│   (entrega dispositivo_id)       │ │ ││  • Usuario, Diagnostico    ├───►│ HistorialLecturasPort       (P4) │
+└──────────────────────────────────┘ │ ││                            │    │ UsuariosPlantasPort              │
+                                     │ ││  validador.py:             │    └─────────────────┬────────────────┘
+┌──────────────────────────────────┐ │ ││  • ValidadorDeEstado       │                      │ implementa
+│ api_dispositivos.py              │ │ ││  • Regla de propiedad:     │    ┌─────────────────▼────────────────┐
+│ • POST /api/dispositivos/        ├─┼─┘│    planta.pertenece_a(usr) │    │ historial_bd.py                  │
+│        {id}/lecturas        (R2) │ │  │                            │    │ (SQLite: lecturas, plantas, usr) │
+│   (Consumido por simulador_esp32)│ │  │  (Sin Flask, SQL, CSV,     │    └──────────────────────────────────┘
+└──────────────────────────────────┘ │  │   HTTP ni librería JWT)    │
+                                     │  │                            │    ┌──────────────────────────────────┐
+┌──────────────────────────────────┐ │  │                            ├───►│ EmisorTokenPort                  │
+│ tests/test_dominio.py            │ │  │                            │    └─────────────────┬────────────────┘
+│ • Invoca puertos de entrada      ├─┴─►│                            │                      │ implementa
+│   directo con tests/fakes.py     │    └────────────────────────────┘    ┌─────────────────▼────────────────┐
+└──────────────────────────────────┘                                      │ emisor_jwt.py (PyJWT HS256)      │
+                                                                          └──────────────────────────────────┘
 ```
 
 ---
@@ -213,10 +176,12 @@ Definidos por el dominio usando `abc.ABC`:
 ```python
 from abc import ABC, abstractmethod
 from typing import Dict, List, Mapping
-from matera.dominio.modelo import Diagnostico, Especie, EstadoActualPlanta, Lectura, Planta
+from matera.dominio.modelo import (
+    Diagnostico, Especie, EstadoActualPlanta, Lectura, Planta
+)
 
 class ValidarLecturaPort(ABC):
-    """R1: Conserva la validación directa de una lectura desde el front contra la tabla de referencia."""
+    """R1: Validación directa desde el front contra tabla de referencia."""
     @abstractmethod
     def validar(self, especie: str, valores: Mapping[str, float]) -> Diagnostico:
         pass
@@ -226,7 +191,7 @@ class ValidarLecturaPort(ABC):
         pass
 
 class RegistrarLecturaPort(ABC):
-    """R2 y R5: Registra una lectura proveniente de un dispositivo, calcula su estado y la persiste."""
+    """R2 y R5: Registra lectura de dispositivo, evalúa y persiste."""
     @abstractmethod
     def registrar(
         self,
@@ -237,7 +202,7 @@ class RegistrarLecturaPort(ABC):
         pass
 
 class ConsultarEstadoPort(ABC):
-    """R5, R6 y R7: Consulta el estado actual y el historial de una planta verificando propiedad."""
+    """R5, R6 y R7: Consulta estado actual e historial verificando propiedad."""
     @abstractmethod
     def consultar_estado(self, usuario_id: str, planta_id: str) -> EstadoActualPlanta:
         pass
@@ -253,7 +218,7 @@ class ConsultarEstadoPort(ABC):
         pass
 
 class AutenticarUsuarioPort(ABC):
-    """R7: Caso de uso de registro e inicio de sesión de usuarios y emisión de tokens vía EmisorTokenPort."""
+    """R7: Registro/login de usuarios y emisión vía EmisorTokenPort."""
     @abstractmethod
     def registrar_usuario(self, nombre: str, email: str, password: str) -> Dict[str, str]:
         pass
@@ -273,7 +238,7 @@ from typing import Dict, List, Optional
 from matera.dominio.modelo import Diagnostico, Especie, Lectura, Planta, Usuario
 
 class TablaReferenciaPort(ABC):
-    """P3 (R4): Contrato para obtener los rangos óptimos de las especies (implementado en CSV y BD)."""
+    """P3 (R4): Contrato para obtener rangos óptimos (implementado en CSV y BD)."""
     @abstractmethod
     def obtener_por_nombre(self, nombre: str) -> Optional[Especie]:
         pass
@@ -283,7 +248,7 @@ class TablaReferenciaPort(ABC):
         pass
 
 class HistorialLecturasPort(ABC):
-    """P4 (R5): Contrato para persistir y consultar lecturas históricas por planta o dispositivo."""
+    """P4 (R5): Contrato para persistir y consultar lecturas históricas."""
     @abstractmethod
     def guardar_lectura(self, lectura: Lectura, diagnostico: Diagnostico) -> None:
         pass
@@ -297,7 +262,7 @@ class HistorialLecturasPort(ABC):
         pass
 
 class UsuariosPlantasPort(ABC):
-    """Contrato de salida para persistir usuarios y consultar la relación usuario-planta-dispositivo."""
+    """Contrato de salida para persistir usuarios y relación usuario-planta."""
     @abstractmethod
     def guardar_usuario(self, usuario: Usuario) -> None:
         pass
@@ -456,45 +421,49 @@ Para cumplir esta restricción con **cero archivos del dominio modificados**, ej
 
 ```
 [Paso 0: Higiene de Git]
-  Respaldar trabajo previo no confirmado (WebSockets / SesionQR) en rama 'feature/websocket-qr'
-  y dejar 'main' limpia en el commit base de Fase 1 (e530488).
+  Respaldar trabajo previo no confirmado (WebSockets / SesionQR) en la rama
+  'feature/websocket-qr' y dejar 'main' limpia en el commit base (e530488).
         │
         ▼
 [Commit 1: refactor(hexagonal)]
-  Reorganizar el proyecto en 'matera/dominio/', 'matera/puertos/' y 'matera/adaptadores/'.
-  • Define 'Lectura' (con marca_tiempo y dispositivo_id), 'Planta', 'Usuario' en 'dominio/modelo.py'.
-  • Define TODOS los puertos en 'puertos/entrada.py' (incluyendo RegistrarLecturaPort) y 'puertos/salida.py'.
-  • Implementa 'ValidadorDeEstado' y la lógica de los puertos de entrada en 'dominio/validador.py'.
-  • Migra 'tabla_csv.py', 'api_front.py' (R1) y pruebas unitarias puras con dobles ('tests/fakes.py').
+  Reorganizar en 'matera/dominio/', 'matera/puertos/' y 'matera/adaptadores/'.
+  • Define 'Lectura' (con marca_tiempo y dispositivo_id), 'Planta', 'Usuario'
+    en 'dominio/modelo.py'.
+  • Define TODOS los puertos en 'puertos/entrada.py' (incluyendo
+    RegistrarLecturaPort) y 'puertos/salida.py'.
+  • Implementa 'ValidadorDeEstado' y casos de uso en 'dominio/validador.py'.
+  • Migra 'tabla_csv.py', 'api_front.py' (R1) y tests con 'tests/fakes.py'.
         │
         ▼
 [Commit 2: feat(persistencia)]
-  Implementar adaptadores SQLite ('tabla_bd.py' e 'historial_bd.py') y switch por configuración
-  'TABLA_REFERENCIA_DRIVER=csv|bd' en 'matera/app.py' (R4 y R5).
+  Implementar adaptadores SQLite ('tabla_bd.py' e 'historial_bd.py') y switch
+  por configuración 'TABLA_REFERENCIA_DRIVER=csv|bd' en 'matera/app.py' (R4, R5).
         │
         ▼
 [Commit 3: feat(seguridad-jwt)]
-  Implementar 'emisor_jwt.py' (EmisorTokenPort) y 'seguridad_jwt.py' (decoradores de verificación
-  para usuario y dispositivo), endpoints de registro/login y consulta protegida en 'api_front.py' (R7).
+  Implementar 'emisor_jwt.py' (EmisorTokenPort) y 'seguridad_jwt.py'
+  (decoradores de usuario y dispositivo), registro/login y consulta protegida
+  en 'api_front.py' (R7).
         │
         ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ [COMMIT 4: PRUEBA DE CAMBIO] (Enlace directo en el Documento de Arquitectura)│
-│ feat(dispositivos): agregar adaptador de dispositivos y simulador ESP32      │
-│                                                                              │
-│ Archivos creados / modificados en este commit:                               │
-│   + matera/adaptadores/entrada/api_dispositivos.py                           │
-│   + simulador_esp32.py                                                       │
-│   ~ matera/app.py (únicamente registrar el blueprint de dispositivos)        │
-│   + tests/test_api_dispositivos.py                                           │
-│                                                                              │
-│ Archivos tocados en matera/dominio/ y matera/puertos/: EXACTAMENTE CERO (0). │
-└──────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [COMMIT 4: PRUEBA DE CAMBIO] (Enlace en el Documento de Arquitectura)      │
+│ feat(dispositivos): agregar adaptador de dispositivos y simulador ESP32    │
+│                                                                            │
+│ Archivos creados / modificados en este commit:                             │
+│   + matera/adaptadores/entrada/api_dispositivos.py                         │
+│   + simulador_esp32.py                                                     │
+│   ~ matera/app.py (únicamente registrar el blueprint de dispositivos)      │
+│   + tests/test_api_dispositivos.py                                         │
+│                                                                            │
+│ Archivos tocados en matera/dominio/ y matera/puertos/: CERO (0).           │
+└────────────────────────────────────────────────────────────────────────────┘
         │
         ▼
 [Commit 5: feat(frontend-docs)]
-  Actualizar 'frontend/' con login JWT, consulta periódica (polling R6) e intento de acceso a
-  planta ajena; actualizar 'README.md' y redactar 'docs/documento_arquitectura.md' (máx. 4 páginas).
+  Actualizar 'frontend/' con login JWT, consulta periódica (polling R6) y
+  prueba de acceso a planta ajena; actualizar 'README.md' y redactar
+  'docs/documento_arquitectura.md' (máximo 4 páginas).
 ```
 
 ---
@@ -522,54 +491,55 @@ Adoptamos la estructura sugerida por el profesor en la página 4 del PDF, manten
 ```
 SmartPlantBase/
 ├── data/
-│   ├── especies_referencia.csv          # Catálogo CSV de las 5 especies (Anexo B)
-│   └── matera.db                        # Base de datos SQLite autogenerada
+│   ├── especies_referencia.csv       # Catálogo CSV de 5 especies (Anexo B)
+│   └── matera.db                     # Base de datos SQLite autogenerada
 ├── frontend/
-│   ├── index.html                       # Dashboard asíncrono (Login + Estado en vivo + Validación R1)
+│   ├── index.html                    # Dashboard (Login + Polling R6 + Form R1)
 │   ├── css/style.css
 │   └── js/
 │       ├── config.js
-│       ├── api.js                       # Cliente fetch con cabeceras Authorization Bearer
+│       ├── api.js                    # Fetch con Authorization Bearer
 │       ├── ui.js
-│       └── app.js                       # Polling periódico (setInterval) y manejo de eventos
+│       └── app.js                    # Polling periódico (setInterval)
 ├── matera/
 │   ├── __init__.py
 │   ├── dominio/
 │   │   ├── __init__.py
-│   │   ├── modelo.py                    # Lectura, Especie, EstadoPlanta, Diagnostico, Planta, Usuario
-│   │   ├── validador.py                 # ValidadorDeEstado y casos de uso del dominio
-│   │   └── excepciones.py               # Excepciones puras (ParametroInvalido, AccesoNoAutorizado, etc.)
+│   │   ├── modelo.py                 # Lectura, Especie, EstadoPlanta, Planta, Usuario
+│   │   ├── validador.py              # ValidadorDeEstado y servicios de dominio
+│   │   └── excepciones.py            # Excepciones puras de negocio
 │   ├── puertos/
 │   │   ├── __init__.py
-│   │   ├── entrada.py                   # RegistrarLecturaPort, ConsultarEstadoPort, ValidarLecturaPort, AutenticarUsuarioPort
-│   │   └── salida.py                    # TablaReferenciaPort, HistorialLecturasPort, UsuariosPlantasPort, EmisorTokenPort
+│   │   ├── entrada.py                # RegistrarLecturaPort, ConsultarEstadoPort, etc.
+│   │   └── salida.py                 # TablaReferenciaPort, HistorialLecturasPort,
+│   │                                 # UsuariosPlantasPort, EmisorTokenPort
 │   ├── adaptadores/
 │   │   ├── __init__.py
 │   │   ├── entrada/
 │   │   │   ├── __init__.py
-│   │   │   ├── api_front.py             # Endpoints REST del front (R1, R5, R6, R7)
-│   │   │   ├── api_dispositivos.py      # Endpoint REST del ESP32: POST /api/dispositivos/{id}/lecturas (R2)
-│   │   │   └── seguridad_jwt.py         # Decoradores de verificación JWT por alcance (R7)
+│   │   │   ├── api_front.py          # Endpoints REST del front (R1, R5, R6, R7)
+│   │   │   ├── api_dispositivos.py   # POST /api/dispositivos/{id}/lecturas (R2)
+│   │   │   └── seguridad_jwt.py      # Decoradores de verificación JWT (R7)
 │   │   └── salida/
 │   │       ├── __init__.py
-│   │       ├── tabla_csv.py             # Implementación CSV de TablaReferenciaPort (R4)
-│   │       ├── tabla_bd.py              # Implementación SQLite de TablaReferenciaPort (R4)
-│   │       ├── historial_bd.py          # Implementación SQLite de HistorialLecturasPort y UsuariosPlantasPort (R5, R7)
-│   │       └── emisor_jwt.py            # Implementación PyJWT de EmisorTokenPort (R7)
-│   └── app.py                           # Único punto de composición (create_app)
-├── app.py                               # Punto de arranque en raíz (importa create_app de matera.app)
-├── simulador_esp32.py                   # Script independiente del simulador ESP32 (R3)
+│   │       ├── tabla_csv.py          # Implementación CSV de TablaReferenciaPort (R4)
+│   │       ├── tabla_bd.py           # Implementación BD de TablaReferenciaPort (R4)
+│   │       ├── historial_bd.py       # Implementación BD de Historial y Plantas (R5)
+│   │       └── emisor_jwt.py         # Implementación PyJWT de EmisorTokenPort (R7)
+│   └── app.py                        # Único punto de composición (create_app)
+├── app.py                            # Arranque en raíz (delega en matera.app)
+├── simulador_esp32.py                # Script independiente del simulador ESP32 (R3)
 ├── tests/
-│   ├── fakes.py                         # Dobles de prueba en memoria para todos los puertos de salida
-│   ├── test_dominio.py                  # Pruebas unitarias puras de dominio (sin servidor, ni archivos, ni BD)
-│   ├── test_adaptadores_salida.py       # Pruebas de intercambiabilidad CSV vs SQLite e historial
-│   ├── test_seguridad_jwt.py            # Pruebas de tokens (usuario vs dispositivo) y rechazo de planta ajena
-│   └── test_api_dispositivos.py         # Pruebas de integración del endpoint de dispositivos
+│   ├── fakes.py                      # Dobles de prueba en memoria para puertos
+│   ├── test_dominio.py               # Pruebas unitarias puras de dominio (sin red/BD)
+│   ├── test_adaptadores_salida.py    # Pruebas CSV vs SQLite e historial
+│   ├── test_seguridad_jwt.py         # Pruebas de scopes JWT y acceso a planta ajena
+│   └── test_api_dispositivos.py      # Pruebas del endpoint de dispositivos
 ├── docs/
 │   ├── plan_fase2_arquitectura_hexagonal.md
-│   └── documento_arquitectura.md        # Entregable oficial (máximo 4 páginas)
-├── requirements.txt                     # flask, flask-cors, PyJWT, pytest
-└── README.md                            # Instrucciones para ejecutar back, front y simulador
+│   └── documento_arquitectura.md     # Entregable oficial (máximo 4 páginas)
+├── requirements.txt                  # flask, flask-cors, PyJWT, pytest
+└── README.md                         # Guía para ejecutar back, front y simulador
 ```
 
 ---

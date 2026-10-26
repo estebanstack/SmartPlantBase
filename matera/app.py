@@ -11,6 +11,7 @@ from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
+from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.adaptadores.salida.historial_bd import BdHistorialYPlantasAdapter
 from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
@@ -150,15 +151,25 @@ def create_app(
     # 3. Adaptador de persistencia SQLite para historial de lecturas y usuarios/plantas (R5, R7)
     persistencia_bd = BdHistorialYPlantasAdapter(ruta_bd)
 
-    # 4. Núcleo de Dominio (Casos de uso / Puertos de entrada)
+    # 4. Adaptador de Emisión de Tokens JWT (R7)
+    clave_jwt = os.getenv("JWT_SECRET", "matera-secret-key-arquitectura-2026-segura")
+    emisor_token = JwtEmisorTokenAdapter(secret_key=clave_jwt)
+
+    # 5. Núcleo de Dominio (Casos de uso / Puertos de entrada)
     servicio_dominio = ServicioMateraDominio(
         tabla_referencia=tabla_referencia,
         historial_lecturas=persistencia_bd,
         usuarios_plantas=persistencia_bd,
+        emisor_token=emisor_token,
     )
 
-    # 4. Registro de Adaptadores de Entrada (Blueprints)
-    app.register_blueprint(crear_api_front_blueprint(servicio_dominio, servicio_dominio, servicio_dominio))
+    # 6. Registro de Adaptadores de Entrada (Blueprints)
+    app.register_blueprint(crear_api_front_blueprint(
+        puerto_validacion=servicio_dominio,
+        puerto_consultas=servicio_dominio,
+        puerto_auth=servicio_dominio,
+        emisor_jwt=emisor_token,
+    ))
 
     # 5. Manejadores de error
     registrar_manejadores_error(app)
