@@ -1,39 +1,64 @@
 /**
  * Capa de acceso a la API (cliente HTTP).
- * Única parte del front que sabe que existe HTTP: construye las peticiones,
- * interpreta los códigos de estado y devuelve datos ya normalizados.
- * No toca el DOM ni conoce ningún elemento de la página.
+ * Construye las peticiones asíncronas con cabeceras Bearer cuando se requiere.
+ * No toca el DOM ni conoce ningún elemento visual.
  */
 
-/** Error normalizado de la API. La capa de presentación no ve códigos HTTP. */
 class ApiError extends Error {
-    constructor(codigo, mensaje, campo = null) {
+    constructor(codigo, mensaje, campo = null, status = 0) {
         super(mensaje);
         this.codigo = codigo;
         this.campo = campo;
+        this.status = status;
     }
 }
 
 const PlantApi = {
-    /** RF5: catálogo de especies soportadas con sus rangos de referencia. */
+    /** R1: catálogo de especies soportadas con sus rangos de referencia. */
     async obtenerEspecies() {
-        const respuesta = await this._pedir(`${CONFIG.API_BASE}/especies`);
-        return respuesta;
+        return this._pedir(`${CONFIG.API_BASE}/v1/especies`);
     },
 
-    /** RF1-RF4: envía una medición y devuelve el diagnóstico. */
+    /** R1: envía una medición manual y devuelve el diagnóstico. */
     async evaluarDiagnostico(especie, valores) {
-        return this._pedir(`${CONFIG.API_BASE}/diagnosticos`, {
+        return this._pedir(`${CONFIG.API_BASE}/v1/diagnosticos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ especie, ...valores }),
         });
     },
 
-    /**
-     * Ejecuta la petición y traduce cualquier fallo a un ApiError.
-     * Los cuerpos de error de RF6 llegan con la forma {error, mensaje, detalle}.
-     */
+    /** R7: inicio de sesión y obtención de JWT. */
+    async login(email, password) {
+        return this._pedir(`${CONFIG.API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+    },
+
+    /** R7: listar plantas del usuario autenticado. */
+    async obtenerPlantas(token) {
+        return this._pedir(`${CONFIG.API_BASE}/plantas`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+    },
+
+    /** R5, R6: consultar estado en vivo y última lectura de una planta. */
+    async obtenerEstadoPlanta(plantaId, token) {
+        return this._pedir(`${CONFIG.API_BASE}/plantas/${plantaId}/estado`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+    },
+
+    /** R5: consultar lecturas históricas de una planta. */
+    async obtenerHistorialPlanta(plantaId, token, limite = 10) {
+        return this._pedir(`${CONFIG.API_BASE}/plantas/${plantaId}/historial?limite=${limite}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+    },
+
+    /** Petición genérica con traducción uniforme de errores. */
     async _pedir(url, opciones = {}) {
         let respuesta;
         try {
@@ -41,7 +66,9 @@ const PlantApi = {
         } catch (fallo) {
             throw new ApiError(
                 'SIN_CONEXION',
-                `No fue posible comunicarse con el servicio en ${CONFIG.API_BASE}. Verifica que el backend esté en ejecución.`
+                `No fue posible comunicarse con el backend en ${CONFIG.API_BASE}. Verifica que app.py esté corriendo.`,
+                null,
+                0
             );
         }
 
@@ -49,9 +76,9 @@ const PlantApi = {
 
         if (!respuesta.ok) {
             const codigo = (datos && datos.error) || 'ERROR_DESCONOCIDO';
-            const mensaje = (datos && datos.mensaje) || 'La solicitud no pudo ser procesada.';
+            const mensaje = (datos && datos.mensaje) || `Error HTTP ${respuesta.status}`;
             const campo = (datos && datos.detalle && (datos.detalle.campo || datos.detalle.especie)) || null;
-            throw new ApiError(codigo, mensaje, campo);
+            throw new ApiError(codigo, mensaje, campo, respuesta.status);
         }
 
         return datos;

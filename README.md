@@ -1,141 +1,135 @@
-# Matera Inteligente — Sistema de Diagnóstico de Plantas (Base del Núcleo)
-
-Sistema de diagnóstico del estado de salud de plantas basado en mediciones ambientales (humedad del sustrato en %, nivel de iluminación en lux y temperatura ambiental en °C). Desarrollado bajo los principios de **Clean Architecture**, principios **SOLID**, desacoplamiento estricto del dominio (RA1–RA8) y un frontend web asíncrono sin recargas.
-
----
-
-## 1. Requisitos Previos
-- **Python 3.10+** (probado y verificado en Python 3.14).
-- Gestor de paquetes `pip` y entorno virtual `venv`.
-- Navegador web moderno con soporte para JavaScript Fetch API.
+# SmartPlantBase · Matera Inteligente (Fase 2: Arquitectura Hexagonal)
+**Universidad Sergio Arboleda · Arquitectura de Software · Semestre 2026-3**  
+**Entrega 2:** Del sensor al dominio: puertos y adaptadores  
+**Framework y Lenguaje:** Python 3.14 / Flask / SQLite / PyJWT / pytest  
 
 ---
 
-## 2. Instalación del Entorno
+## 1. Resumen de la Arquitectura Hexagonal
 
-1. Clonar el repositorio y ubicarse en la raíz del proyecto:
+SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn, 2005)**:
+- **Núcleo de Dominio (`matera/dominio/`):** Entidades (`Lectura`, `Especie`, `Planta`, `Usuario`, `Diagnostico`), reglas botánicas (`ValidadorDeEstado`) y excepciones puras. **0 dependencias de frameworks, HTTP, bases de datos o librerías de seguridad.**
+- **Puertos de Entrada (`matera/puertos/entrada.py`):** Casos de uso definidos mediante interfaces abstractas (`ValidarLecturaPort`, `RegistrarLecturaPort`, `ConsultarEstadoPort`, `AutenticarUsuarioPort`).
+- **Puertos de Salida (`matera/puertos/salida.py`):** Contratos abstractos requeridos por el dominio (`TablaReferenciaPort`, `HistorialLecturasPort`, `UsuariosPlantasPort`, `EmisorTokenPort`).
+- **Adaptadores de Entrada (`matera/adaptadores/entrada/`):**
+  - `api_front.py`: Controlador REST para clientes web y autenticación.
+  - `api_dispositivos.py`: Controlador REST para sensores IoT (`POST /api/dispositivos/{id}/lecturas`).
+  - `seguridad_jwt.py`: Decoradores que verifican firma, alcance (`scope: usuario` vs `dispositivo`) y entregan identidades limpias al caso de uso.
+- **Adaptadores de Salida (`matera/adaptadores/salida/`):**
+  - `tabla_csv.py`: Lector de referencia botánica desde CSV (`CsvTablaReferenciaAdapter`).
+  - `tabla_bd.py`: Lector de referencia botánica desde SQLite (`BdTablaReferenciaAdapter`).
+  - `historial_bd.py`: Persistencia de lecturas, usuarios y plantas en SQLite (`BdHistorialYPlantasAdapter`).
+  - `emisor_jwt.py`: Emisión de tokens con `PyJWT` (`JwtEmisorTokenAdapter`).
+- **Punto Único de Composición (`matera/app.py`):** Instancia adaptadores, resuelve dependencias y ensambla la aplicación.
+
+---
+
+## 2. Requisitos y Configuración Rápida
+
+1. **Clonar repositorio y activar entorno virtual:**
    ```bash
-   git clone <URL_DEL_REPOSITORIO>
    cd SmartPlantBase
-   ```
-
-2. Crear y activar el entorno virtual de Python:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. Instalar dependencias de producción y pruebas:
-   ```bash
+   source ../venv/bin/activate    # o python3 -m venv venv && source venv/bin/activate
    pip install -r requirements.txt
    ```
 
+2. **Ejecutar la suite completa de pruebas:**
+   ```bash
+   pytest
+   ```
+   *Ejecuta 66 pruebas unitarias y de integración en menos de 0.3 segundos con 100% de éxito.*
+
 ---
 
-## 3. Ejecución de Pruebas Unitarias del Dominio (RA4)
+## 3. Demostración en Vivo para Sustentación Oral (4 Pasos)
 
-Las pruebas unitarias del dominio son la evidencia ejecutable del desacoplamiento total (**RA4**). Se ejecutan de forma 100% aislada: **sin levantar el servidor web y sin leer archivos ni bases de datos reales** (utilizando dobles de prueba / fakes de la abstracción de repositorio):
+La base de datos SQLite autogenera datos semilla para demostrar de inmediato en clase:
+- **Usuario 1 (Principal):** `ana@matera.edu.co` / `clave123` (`usr-ana`), dueña de `planta-01` (Sansevieria, vinculada a `esp32-01`).
+- **Usuario 2 (Ajeno):** `carlos@matera.edu.co` / `clave123` (`usr-carlos`), dueño de `planta-02` (Helecho, vinculado a `esp32-02`).
 
+### Demostración 1: Simulador ESP32 enviando lecturas y Front actualizándose solo (R2, R3, R5, R6)
+1. **Terminal 1 (Backend):**
+   ```bash
+   python app.py
+   ```
+2. **Terminal 2 (Frontend Web):**
+   ```bash
+   python3 -m http.server 8000 --directory frontend/
+   ```
+   Abre en el navegador: `http://localhost:8000`.  
+   Haz clic en **"👤 Entrar como Ana"**. Observarás el panel de telemetría en vivo con polling automático cada 3 segundos.
+3. **Terminal 3 (Simulador ESP32):**
+   ```bash
+   python simulador_esp32.py --intervalo 2
+   ```
+   Observa cómo el frontend refleja en tiempo real las lecturas saludables (`SALUDABLE`), las alertas de sequía/calor (`EN_RIESGO` / `CRITICO`) y cómo los datos corruptos son rechazados con `400 Bad Request` sin detener el sistema.
+
+### Demostración 2: Conmutación de CSV a Base de Datos por configuración (R4)
+Reinicia el backend cambiando el driver por variable de entorno:
 ```bash
-# Ejecutar únicamente las pruebas del dominio puro:
-pytest tests/test_domain_rules.py -v
-
-# O ejecutar toda la suite de pruebas (dominio, aplicación, infraestructura y API REST):
-pytest tests/ -v
+TABLA_REFERENCIA_DRIVER=bd python app.py
 ```
+El sistema lee las especies desde la tabla SQLite `especies` sin modificar ni una sola línea de código en el dominio.
 
----
+### Demostración 3: Intento de acceso a una planta ajena — debe fallar (R7)
+1. En el frontend, haz clic en **"👤 Entrar como Carlos"**.
+2. Haz clic en el botón rojo **"🚨 Probar acceso no autorizado a planta de Ana"**.
+3. El frontend muestra la notificación de rechazo con **HTTP 403 Forbidden (`ACCESO_DENEGADO`)**, evidenciando que la regla de propiedad reside en el núcleo de dominio: `planta.pertenece_a(usuario_id)`.
 
-## 4. Ejecución del Sistema Completo
-
-El backend y el frontend están completamente desacoplados y se ejecutan como servicios independientes (**RA1**, **RA2**, **RA7**).
-
-### Paso 1: Levantar el Backend (API REST en Flask)
-En una primera terminal, con el entorno virtual activado:
+### Demostración 4: Verificación de la Prueba de Cambio (15% de la Rúbrica)
+Para demostrar al profesor que el Commit 4 no modificó el dominio:
 ```bash
-python app.py
+git show 8c4b6d8 --stat
 ```
-El backend iniciará en: `http://127.0.0.1:5000`
-- `GET  /api/v1/especies` : Catálogo de especies y rangos óptimos.
-- `POST /api/v1/diagnosticos` : Endpoint de evaluación de diagnóstico.
-
-### Paso 2: Servir el Frontend (Cliente Web Estático Desacoplado)
-En una segunda terminal, sirva la carpeta `frontend/` mediante cualquier servidor HTTP estático (por ejemplo, el módulo estándar de Python):
-```bash
-python3 -m http.server 8000 --directory frontend/
-```
-Abra su navegador en: `http://localhost:8000`
-
-> **Nota sobre CORS (RA7):** La API de Flask tiene configurado CORS (`flask-cors`) para autorizar las solicitudes asíncronas originadas desde `http://localhost:8000` hacia `http://127.0.0.1:5000`.
+Verás que sólo se crearon `api_dispositivos.py`, `simulador_esp32.py`, su prueba y la línea de registro en `matera/app.py`. **Cero (0) archivos modificados en `matera/dominio/` y `matera/puertos/`.**
 
 ---
 
-## 5. Endpoints Principales de la API (Anexo A)
+## 4. Estructura del Repositorio
 
-### `GET /api/v1/especies`
-Devuelve la lista de especies botánicas soportadas con sus rangos de referencia.
-
-**Respuesta 200 OK:**
-```json
-[
-  {
-    "nombre": "sansevieria",
-    "rangos": {
-      "humedad": { "min": 20.0, "max": 45.0, "unidad": "%" },
-      "luz": { "min": 200.0, "max": 1500.0, "unidad": "lux" },
-      "temperatura": { "min": 15.0, "max": 29.0, "unidad": "°C" }
-    }
-  }
-]
 ```
-
-### `POST /api/v1/diagnosticos`
-Evalúa una medición y devuelve el diagnóstico con recomendaciones.
-
-**Cuerpo de la Petición:**
-```json
-{
-  "especie": "sansevieria",
-  "humedad": 32.5,
-  "luz": 850,
-  "temperatura": 21.0
-}
+SmartPlantBase/
+├── data/
+│   ├── especies_referencia.csv       # Catálogo CSV de 5 especies (Anexo B)
+│   └── matera.db                     # Base de datos SQLite autogenerada
+├── frontend/
+│   ├── index.html                    # Dashboard (Login + Polling R6 + Form R1)
+│   ├── css/style.css
+│   └── js/
+│       ├── config.js                 # Dirección de la API
+│       ├── api.js                    # Fetch con cabeceras Bearer
+│       ├── ui.js                     # Renderizado en DOM
+│       └── app.js                    # Polling cada 3s y control de sesión
+├── matera/
+│   ├── dominio/
+│   │   ├── modelo.py                 # Entidades puras: Lectura, Especie, Planta, Usuario
+│   │   ├── validador.py              # ValidadorDeEstado y ServicioMateraDominio
+│   │   └── excepciones.py            # Excepciones de negocio (0 dependencias)
+│   ├── puertos/
+│   │   ├── entrada.py                # ValidarLecturaPort, RegistrarLecturaPort, etc.
+│   │   └── salida.py                 # TablaReferenciaPort, HistorialLecturasPort, etc.
+│   ├── adaptadores/
+│   │   ├── entrada/
+│   │   │   ├── api_front.py          # Endpoints web REST (/api/v1/..., /api/auth/...)
+│   │   │   ├── api_dispositivos.py   # Endpoint sensor: POST /api/dispositivos/{id}/lecturas
+│   │   │   └── seguridad_jwt.py      # Decoradores @requiere_jwt_usuario y @requiere_jwt_dispositivo
+│   │   └── salida/
+│   │       ├── tabla_csv.py          # Adaptador CSV de TablaReferenciaPort
+│   │       ├── tabla_bd.py           # Adaptador SQLite de TablaReferenciaPort
+│   │       ├── historial_bd.py       # Adaptador SQLite de Historial y Plantas
+│   │       └── emisor_jwt.py         # Adaptador PyJWT de EmisorTokenPort
+│   └── app.py                        # Composition Root (create_app)
+├── app.py                            # Punto de arranque en raíz (delega a matera.app)
+├── simulador_esp32.py                # Script independiente del simulador ESP32
+├── tests/
+│   ├── fakes.py                      # Dobles de prueba en memoria
+│   ├── test_dominio.py               # Pruebas unitarias puras del dominio
+│   ├── test_adaptadores_salida.py    # Pruebas de persistencia e intercambiabilidad
+│   ├── test_seguridad_jwt.py         # Pruebas de JWT y regla de propiedad
+│   └── test_api_dispositivos.py      # Pruebas del endpoint de sensores ESP32
+├── docs/
+│   ├── plan_fase2_arquitectura_hexagonal.md
+│   └── documento_arquitectura.md     # Documento entregable (máximo 4 páginas)
+├── requirements.txt
+└── README.md
 ```
-
-**Respuesta 200 OK:**
-```json
-{
-  "especie": "sansevieria",
-  "estado": "SALUDABLE",
-  "parametros": [
-    { "nombre": "humedad", "valor": 32.5, "unidad": "%", "rangoOptimo": [20.0, 45.0], "estado": "OPTIMO" },
-    { "nombre": "luz", "valor": 850.0, "unidad": "lux", "rangoOptimo": [200.0, 1500.0], "estado": "OPTIMO" },
-    { "nombre": "temperatura", "valor": 21.0, "unidad": "°C", "rangoOptimo": [15.0, 29.0], "estado": "OPTIMO" }
-  ],
-  "recomendaciones": []
-}
-```
-
-**Respuesta 400 BAD REQUEST (RF6):**
-```json
-{
-  "error": "PARAMETRO_INVALIDO",
-  "mensaje": "Humedad de -5.0% está fuera del rango físicamente posible (0.0% - 100.0%).",
-  "detalle": { "campo": "humedad" }
-}
-```
-
-**Respuesta 404 NOT FOUND (RF6):**
-```json
-{
-  "error": "ESPECIE_NO_SOPORTADA",
-  "mensaje": "La especie 'bonsai' no está registrada en el catálogo de referencia.",
-  "detalle": { "especie": "bonsai" }
-}
-```
-
----
-
-## 6. Documentación Adicional
-- [Documento de Arquitectura](docs/documento_arquitectura.md): Diagrama de componentes, diagrama de secuencia, tabla de responsabilidades, justificación SOLID y plan de evolución.
-- [Bitácora de Uso de IA](docs/bitacora_ia.md): Relato del trabajo interactivo con asistentes de inteligencia artificial.

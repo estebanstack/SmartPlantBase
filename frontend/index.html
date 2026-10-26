@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matera Inteligente - Diagnóstico Botánico</title>
+    <title>Matera Inteligente · Arquitectura Hexagonal</title>
     <!-- Fuentes Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Estilos CSS estáticos desacoplados (RA2) -->
+    <!-- Estilos CSS -->
     <link rel="stylesheet" href="css/style.css">
-    <!-- Cliente asíncrono, separado por responsabilidad (RA2) -->
+    <!-- Cliente asíncrono desacoplado -->
     <script defer src="js/config.js"></script>
     <script defer src="js/api.js"></script>
     <script defer src="js/ui.js"></script>
@@ -24,34 +24,100 @@
 
     <main class="container">
         <header class="app-header">
-            <div class="badge-tag">Arquitectura en Capas · Matera Inteligente</div>
-            <h1>Diagnóstico Botánico</h1>
-            <p>Servicio de evaluación ambiental desacoplado. Monitorea y diagnostica la salud de tu planta en tiempo real.</p>
+            <div class="badge-tag">Arquitectura Hexagonal · Puertos y Adaptadores (Fase 2)</div>
+            <h1>SmartPlantBase · Matera Inteligente</h1>
+            <p>Monitoreo ambiental asíncrono con polling, seguridad segregada JWT y reglas botánicas de dominio puro.</p>
         </header>
 
-        <!-- Banner de Error Visible (RF6) -->
+        <!-- Banner de Notificaciones / Errores -->
         <div id="error-banner" class="alert-error hidden" role="alert">
-            <h4 id="error-title">⚠️ Error en la solicitud</h4>
+            <h4 id="error-title">⚠️ Notificación</h4>
             <p id="error-message"></p>
         </div>
 
+        <!-- Barra de Autenticación y Demostración en Vivo (R7) -->
+        <section class="card auth-card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">🔐 Sesión y Control de Acceso (R7)</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;" id="user-session-desc">
+                        No hay sesión activa. Inicia sesión para ver tu planta y activar el polling.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="auth-buttons">
+                    <button type="button" id="btn-login-ana" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                        👤 Entrar como Ana (Dueña planta-01)
+                    </button>
+                    <button type="button" id="btn-login-carlos" class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: #3b82f6;">
+                        👤 Entrar como Carlos (Dueño planta-02)
+                    </button>
+                    <button type="button" id="btn-logout" class="btn-primary hidden" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: #6b7280;">
+                        🚪 Cerrar Sesión
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel de Telemetría en Vivo (R6 - Polling Periódico) -->
+        <section class="card live-card" id="live-panel" style="margin-bottom: 1.5rem; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div>
+                    <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">📡 POLLING ACTIVO (CADA 3S)</span>
+                    <h2 style="font-size: 1.3rem; margin-top: 0.4rem;" id="live-plant-title">Cargando planta...</h2>
+                </div>
+                <div>
+                    <button type="button" id="btn-probar-ajena" class="btn-primary" style="background: #ef4444; font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                        🚨 Probar acceso no autorizado a planta de Ana (403)
+                    </button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                <div class="card" style="padding: 1rem; background: rgba(0,0,0,0.25);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">ESTADO BOTÁNICO</div>
+                    <div id="live-status" style="font-size: 1.25rem; font-weight: 700; color: #10b981; margin-top: 0.25rem;">ESPERANDO LECTURAS...</div>
+                </div>
+                <div class="card" style="padding: 1rem; background: rgba(0,0,0,0.25);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">HUMEDAD SUSTRATO</div>
+                    <div id="live-humedad" style="font-size: 1.25rem; font-weight: 700; margin-top: 0.25rem;">-- %</div>
+                </div>
+                <div class="card" style="padding: 1rem; background: rgba(0,0,0,0.25);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">NIVEL DE LUZ</div>
+                    <div id="live-luz" style="font-size: 1.25rem; font-weight: 700; margin-top: 0.25rem;">-- lux</div>
+                </div>
+                <div class="card" style="padding: 1rem; background: rgba(0,0,0,0.25);">
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">TEMPERATURA</div>
+                    <div id="live-temperatura" style="font-size: 1.25rem; font-weight: 700; margin-top: 0.25rem;">-- °C</div>
+                </div>
+            </div>
+
+            <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+                <span id="live-marca">Última lectura: --</span>
+                <span id="live-dispositivo">Dispositivo sensor: --</span>
+            </div>
+            <div id="live-recs" style="margin-top: 0.75rem; font-size: 0.9rem; color: #fbbf24;"></div>
+        </section>
+
+        <!-- Grid de Evaluación Manual (R1) -->
         <div class="grid-layout">
-            <!-- Sección del Formulario -->
+            <!-- Sección del Formulario Manual -->
             <section class="card form-card">
-                <h2>Ingreso de Medición</h2>
+                <h2>Evaluación Manual (R1)</h2>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                    Conserva la validación de la fase anterior desde el front, detrás del puerto de entrada ValidarLecturaPort.
+                </p>
                 <form id="plant-form" novalidate>
                     <div class="form-group">
-                        <label for="especie">Especie botánica (RF5)</label>
+                        <label for="especie">Especie botánica</label>
                         <select id="especie" name="especie" required>
                             <option value="" disabled selected>Cargando especies desde la API...</option>
                         </select>
                     </div>
 
-                    <!-- Los campos de medición los genera ui.js a partir de RF5 -->
                     <div id="campos-medicion"></div>
 
                     <button type="submit" id="btn-evaluar" class="btn-primary">
-                        <span id="btn-evaluar-texto">Evaluar diagnóstico</span>
+                        <span id="btn-evaluar-texto">Evaluar lectura manual</span>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                             <polyline points="12 5 19 12 12 19"></polyline>
@@ -60,16 +126,15 @@
                 </form>
             </section>
 
-            <!-- Sección de Resultados (Actualizada Asíncronamente) -->
+            <!-- Sección de Resultados Manuales -->
             <section class="card result-card" id="resultado-container">
                 <div class="empty-state" id="empty-state">
                     <div class="icon-bubble">🪴</div>
                     <h3>Esperando medición</h3>
-                    <p>Selecciona una especie e ingresa los parámetros de los sensores para consultar el diagnóstico.</p>
+                    <p>Selecciona una especie e ingresa los parámetros ambientales para consultar el diagnóstico.</p>
                 </div>
 
                 <div class="result-content hidden" id="result-content">
-                    <!-- Cabecera del Estado Global (RF3) -->
                     <div class="status-header" id="status-header">
                         <div class="status-icon" id="status-icon">🌱</div>
                         <div class="status-text-group">
@@ -80,13 +145,11 @@
 
                     <p class="status-summary" id="status-summary"></p>
 
-                    <!-- Lista de Parámetros y Recomendaciones (RF2, RF4) -->
                     <div class="details-box">
-                        <h4>Recomendaciones y Observaciones (RF4)</h4>
+                        <h4>Recomendaciones Botánicas</h4>
                         <ul class="observations-list" id="observations-list"></ul>
                     </div>
 
-                    <!-- Rangos de Referencia Ideales de la Especie -->
                     <div class="reference-ranges">
                         <h4>Parámetros Evaluados vs Rango Óptimo</h4>
                         <div class="ranges-grid" id="ranges-grid"></div>
