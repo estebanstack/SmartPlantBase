@@ -74,3 +74,24 @@ class EspecieDTO:
             "nombre": self.nombre,
             "rangos": {k: v.to_dict() for k, v in self.rangos.items()},
         }
+
+
+@dataclass(frozen=True)
+class SesionQRDTO:
+    """Estructura de transferencia para una sesión de autenticación/vinculación QR."""
+    id: str
+    estado: str
+    usuario_id: Any = None
+    token: Any = None
+    expira_en: Any = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "session_id": self.id,
+            "estado": self.estado,
+            "usuario_id": self.usuario_id,
+            "token": self.token,
+            "expira_en": self.expira_en,
+        }
+

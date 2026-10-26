@@ -1,0 +1,26 @@
+flowchart LR
+    subgraph DominioGobernanza ["Gobernanza y Catálogo Agronómico"]
+        SA["🛡️ <b>SUPERADMIN</b><br/><i>Curador Agronómico</i>"]
+        E["📖 <b>ESPECIE BOTÁNICA</b><br/><b>Plantilla de Referencia</b><br/>• Rangos óptimos (Humedad, Lux, Temp)<br/>• Límites físicos del dominio"]
+        SA -->|"Administra y audita exclusivamente"| E
+    end
+
+    subgraph DominioOperativo ["Operación de Usuario y Hardware"]
+        U["👤 <b>USUARIO REGULAR</b><br/><i>Propietario / Jardinero</i>"]
+        M["🪴 <b>MATERA (Hardware)</b><br/><b>Activo Físico Reutilizable</b><br/>• Identificador QR: 'MAT-001'<br/>• ESP32 empotrado (Caja negra)"]
+        P["🌱 <b>PLANTA (Ser Biológico)</b><br/><b>Organismo Vivo Perecedero</b><br/>• Apodo: 'Mi Albahaca'<br/>• Ciclo de vida dinámico"]
+        
+        U -->|"Posee (*)"| M
+        U -->|"Siembra y nombra"| P
+        M -.->|"Aloja actualmente (0..1)"| P
+    end
+
+    P ===>|"Instancia de (1)"| E
+
+    style SA fill:#FFF8F0,stroke:#B94A04,stroke-width:2px,color:#78350F
+    style E fill:#EEF4FA,stroke:#1B365D,stroke-width:2px,color:#1B365D
+    style U fill:#EEF4FA,stroke:#1B365D,stroke-width:2px,color:#1B365D
+    style M fill:#EBF7EE,stroke:#1E7E34,stroke-width:2px,color:#1E7E34
+    style P fill:#EAF5EA,stroke:#2D6A4F,stroke-width:2px,color:#2D6A4F
+    style DominioGobernanza fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1.5px
+    style DominioOperativo fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1.5px

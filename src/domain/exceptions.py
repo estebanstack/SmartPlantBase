@@ -22,3 +22,21 @@ class ParametroInvalidoError(DominioError):
         super().__init__(mensaje)
         self.campo = campo
         self.mensaje = mensaje
+
+
+class SesionQRError(DominioError):
+    """Excepción base para errores de sesiones QR."""
+    pass
+
+
+class SesionQRNoEncontradaError(SesionQRError):
+    """Lanzada cuando la sesión QR solicitada no existe."""
+    def __init__(self, sesion_id: str):
+        super().__init__(f"No se encontró la sesión QR '{sesion_id}'.")
+        self.sesion_id = sesion_id
+
+
+class SesionQRInvalidaError(SesionQRError):
+    """Lanzada cuando una sesión QR está en un estado no permitido (expirada o ya utilizada)."""
+    pass
+

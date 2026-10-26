@@ -1,0 +1,28 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#EEF4FA",
+    "primaryTextColor": "#1B365D",
+    "primaryBorderColor": "#1B365D",
+    "lineColor": "#1B365D",
+    "secondaryColor": "#EBF7EE",
+    "tertiaryColor": "#F9FAFB",
+    "fontFamily": "Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+    "fontSize": "13px",
+    "actorBkg": "#EEF4FA",
+    "actorBorder": "#1B365D",
+    "actorTextColor": "#1B365D",
+    "signalColor": "#1B365D",
+    "signalTextColor": "#1B365D",
+    "labelBoxBkgColor": "#EBF7EE",
+    "labelBoxBorderColor": "#1E7E34",
+    "labelTextColor": "#1E7E34",
+    "loopTextColor": "#1B365D",
+    "noteBkgColor": "#FFF9E6",
+    "noteBorderColor": "#D97706",
+    "noteTextColor": "#92400E",
+    "activationBorderColor": "#1E7E34",
+    "activationBkgColor": "#EBF7EE",
+    "sequenceNumberColor": "#FFFFFF"
+  }
+}

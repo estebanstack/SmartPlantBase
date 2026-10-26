@@ -4,7 +4,7 @@ Cumple con RA5 (inversión de dependencias) e ISP (interfaz segregada y mínima)
 """
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from src.domain.entities import Especie
+from src.domain.entities import Especie, SesionQR
 
 
 class EspecieRepository(ABC):
@@ -22,3 +22,21 @@ class EspecieRepository(ABC):
     def obtener_todas(self) -> List[Especie]:
         """Obtiene la lista completa de todas las especies soportadas."""
         pass
+
+
+class SesionQRRepository(ABC):
+    """
+    Puerto abstracto para la persistencia de sesiones efímeras de QR.
+    Permite desacoplar el dominio de la tecnología de almacenamiento (memoria, redis, db).
+    """
+
+    @abstractmethod
+    def guardar(self, sesion: SesionQR) -> None:
+        """Guarda o actualiza una sesión QR."""
+        pass
+
+    @abstractmethod
+    def obtener_por_id(self, sesion_id: str) -> Optional[SesionQR]:
+        """Recupera la sesión QR por su identificador único."""
+        pass
+

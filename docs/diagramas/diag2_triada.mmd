@@ -1,0 +1,39 @@
+classDiagram
+    direction LR
+
+    class Usuario {
+        +str id
+        +str email
+        +str nombre
+        +RolUsuario rol
+        <<Actor del Sistema>>
+    }
+
+    class Matera {
+        +str id
+        +str codigo_qr
+        +str usuario_id
+        +esta_disponible() bool
+        <<Hardware Físico>>
+    }
+
+    class Planta {
+        +str id
+        +str apodo
+        +str especie_nombre
+        +str matera_id
+        +datetime creada_en
+        +bool activa
+        <<Ser Biológico>>
+    }
+
+    class Especie {
+        +str nombre
+        +dict rangos_optimos
+        +dict limites_fisicos
+        <<Plantilla Botánica>>
+    }
+
+    Usuario "1" --> "*" Matera : posee (titularidad)
+    Matera "1" --> "0..1" Planta : aloja actualmente
+    Planta "*" --> "1" Especie : tipificada bajo

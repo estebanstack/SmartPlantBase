@@ -1,0 +1,18 @@
+flowchart LR
+    subgraph Roles ["Gobernanza de Roles"]
+        U["👤 <b>Usuario Regular</b><br/><i>(Titular de materas y plantas)</i>"]
+        A["🛡️ <b>Superadministrador</b><br/><i>(Curador botánico oficial)</i>"]
+    end
+
+    MATERAS[("🪴 <b>Materas y Plantas Propias</b><br/><i>(Hardware asignado y cultivos activos)</i>")]
+    CAT[("🌿 <b>Catálogo Botánico Oficial</b><br/><i>(Base de especies curada)</i>")]
+
+    U -->|"Vincula / Monitorea"| MATERAS
+    U -->|"Consulta pública (Lectura)"| CAT
+    A -->|"Crea / Edita / Audita (Escritura)"| CAT
+
+    style U fill:#EEF4FA,stroke:#1B365D,stroke-width:2px,color:#1B365D
+    style A fill:#FFF8F0,stroke:#B94A04,stroke-width:2px,color:#78350F
+    style MATERAS fill:#EBF7EE,stroke:#1E7E34,stroke-width:2px,color:#1E7E34
+    style CAT fill:#EEF4FA,stroke:#1B365D,stroke-width:2px,color:#1B365D
+    style Roles fill:#F8FAFC,stroke:#94A3B8,stroke-width:1.5px,stroke-dasharray: 4 4

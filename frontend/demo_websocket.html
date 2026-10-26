@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartPlant · Demo Interactiva WebSocket & QR</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        botanical: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                            950: '#052e16'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Socket.IO CDN -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- QRCode CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+        }
+        code, pre, .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 0.4; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .animate-pulse-ring {
+            animation: pulse-ring 2.5s infinite ease-in-out;
+        }
+        @keyframes alert-bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .animate-alert {
+            animation: alert-bounce 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- Barra de Navegación Superior -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🪴</span>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-lg font-bold text-white tracking-wide">SmartPlant</h1>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">Demo Arquitectura Dual</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Demostración en vivo de WebSockets, Salas Efímeras QR y Alertas Críticas</p>
+                </div>
+            </div>
+
+            <!-- Estado de Conexión WebSocket -->
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 text-xs">
+                    <span id="ws-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="ws-status" class="text-slate-300 font-medium">Conectando a WebSocket...</span>
+                </div>
+                <button id="btn-audio-toggle" onclick="toggleAudio()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-600 text-xs text-slate-300 transition flex items-center space-x-1.5" title="Activar/Silenciar Efectos de Sonido">
+                    <span id="audio-icon">🔊</span>
+                    <span id="audio-label">Sonido</span>
+                </button>
+                <a href="/" class="text-xs text-slate-400 hover:text-emerald-400 transition flex items-center space-x-1">
+                    <span>Ir a Formulario Clásico</span>
+                    <span>→</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor Principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Banner de Explicación de la Arquitectura Dual -->
+        <section class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-850 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="flex items-start space-x-3">
+                <span class="text-xl">💡</span>
+                <div>
+                    <h2 class="font-semibold text-slate-200 text-sm">¿Cómo funciona esta prueba visual?</h2>
+                    <p class="text-slate-400 mt-0.5">
+                        <strong class="text-emerald-400">Paso 1:</strong> Tu navegador se une a la sala efímera <code class="bg-slate-800 px-1 py-0.5 rounded text-amber-300">qr_{session_id}</code>. Al autorizar el móvil, el servidor te notifica al instante.
+                        <br class="hidden sm:inline">
+                        <strong class="text-emerald-400">Paso 2:</strong> Autenticado el usuario, se une al canal <code class="bg-slate-800 px-1 py-0.5 rounded text-sky-300">user_{usuario_id}</code> para recibir telemetría y alertas botánicas en tiempo real.
+                    </p>
+                </div>
+            </div>
+            <div class="text-right whitespace-nowrap self-end md:self-center">
+                <span class="inline-block px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-mono text-[11px] border border-slate-700">Socket.IO 4.x · Flask</span>
+            </div>
+        </section>
+
+        <!-- Banner Flotante para Alerta Crítica (Aparece reactivamente con WebSocket) -->
+        <div id="live-alert-container" class="hidden transform transition-all duration-300">
+            <div id="live-alert-card" class="bg-rose-950/90 border-2 border-rose-500/80 rounded-2xl p-5 shadow-2xl shadow-rose-950/50 backdrop-blur-md">
+                <div class="flex items-start justify-between">
+                    <div class="flex items-start space-x-4">
+                        <div class="p-3 bg-rose-500/20 rounded-xl border border-rose-500/40 text-rose-300 animate-alert text-2xl">
+                            🚨
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-3">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-500 text-white" id="alert-estado-badge">
+                                    ALERTA CRÍTICA
+                                </span>
+                                <span class="text-xs text-rose-300 font-mono" id="alert-timestamp">Recibido hace un instante vía WebSocket</span>
+                            </div>
+                            <h3 class="text-lg font-bold text-white mt-1" id="alert-title">¡Condición Botánica Peligrosa Detectada!</h3>
+                            <p class="text-sm text-rose-200 mt-1" id="alert-summary"></p>
+                            
+                            <div class="mt-3 pt-3 border-t border-rose-800/60">
+                                <h4 class="text-xs font-semibold uppercase text-rose-300 tracking-wider">Recomendaciones Inmediatas (RF4):</h4>
+                                <ul class="mt-1 space-y-1 text-xs text-rose-100" id="alert-recommendations"></ul>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="dismissAlert()" class="text-rose-400 hover:text-white p-1 rounded-lg hover:bg-rose-900/50 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid de los 2 Flujos Principales -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- ======================================================== -->
+            <!-- FLUJO 1: Autenticación QR Efímera (WhatsApp Web Style)    -->
+            <!-- ======================================================== -->
+            <section class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden flex flex-col justify-between shadow-lg">
+                <div class="p-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-sm">1</span>
+                            <h2 class="text-base font-bold text-white">Flujo 1: Autenticación QR</h2>
+                        </div>
+                        <span id="qr-flow-badge" class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                            Estado: Inactivo
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-400 mt-3">
+                        Genera un código QR efímero en la pantalla. El navegador se une a la sala WebSocket temporal <code class="text-amber-400 font-mono">qr_{session_id}</code> y espera la confirmación en vivo.
+                    </p>
+
+                    <!-- Zona Visual del QR / Estado WhatsApp Web -->
+                    <div class="mt-5 flex flex-col items-center justify-center p-6 bg-slate-950 rounded-xl border border-slate-800/80 min-h-[290px] relative">
+                        
+                        <!-- Estado inicial: Esperando generación -->
+                        <div id="qr-placeholder" class="text-center space-y-3">
+                            <div class="w-20 h-20 mx-auto rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-3xl text-slate-500">
+                                📱
+                            </div>
+                            <p class="text-xs text-slate-400 max-w-xs">
+                                Haz clic en <strong class="text-white">"1. Generar Sesión QR"</strong> para crear el identificador único y escuchar la sala efímera.
+                            </p>
+                        </div>
+
+                        <!-- Estado con QR cargado -->
+                        <div id="qr-active-box" class="hidden flex flex-col items-center space-y-4">
+                            <div class="relative p-3 bg-white rounded-xl shadow-lg shadow-emerald-500/10" id="qr-code-wrapper">
+                                <div id="qrcode-canvas" class="flex items-center justify-center"></div>
+                            </div>
+
+                            <div class="text-center space-y-1">
+                                <div class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs">
+                                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                                    <span id="qr-room-label" class="font-mono font-medium">Conectado a sala: qr_...</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400">Esperando escaneo o autorización móvil...</p>
+                                <p class="text-[10px] text-slate-500 font-mono" id="qr-session-id-display"></p>
+                            </div>
+                        </div>
+
+                        <!-- Estado Autorizado (Reacción instantánea WS) -->
+                        <div id="qr-success-box" class="hidden flex flex-col items-center text-center space-y-4 py-3">
+                            <div class="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-3xl animate-bounce">
+                                ✅
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-emerald-400">¡Autenticado con éxito!</h3>
+                                <p class="text-xs text-slate-300 mt-1">Evento <code class="text-emerald-300 font-mono">qr_autorizado</code> recibido en tiempo real.</p>
+                            </div>
+                            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-left text-xs space-y-1 w-full max-w-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Usuario ID:</span>
+                                    <span class="text-emerald-400 font-mono font-semibold" id="auth-user-display">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Token emitido:</span>
+                                    <span class="text-slate-300 font-mono text-[11px] truncate max-w-[180px]" id="auth-token-display">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">Canal Personal:</span>
+                                    <span class="text-sky-400 font-mono text-[11px]" id="auth-room-display">user_...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Controles de Acción del Paso 1 -->
+                    <div class="mt-5 space-y-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button id="btn-generar-qr" onclick="generarSesionQR()" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-emerald-900/40">
+                                <span>⚡</span>
+                                <span>1. Generar Sesión QR</span>
+                            </button>
+                            
+                            <button id="btn-simular-movil" onclick="simularEscaneoMovil()" disabled class="w-full py-2.5 px-4 rounded-xl bg-slate-800 text-slate-500 cursor-not-allowed font-medium text-xs transition flex items-center justify-center space-x-2 border border-slate-700/60 hover:enabled:bg-sky-600 hover:enabled:text-white hover:enabled:border-sky-500 hover:enabled:cursor-pointer">
+                                <span>📱</span>
+                                <span>2. Simular Escaneo Móvil</span>
+                            </button>
+                        </div>
+
+                        <!-- Opciones avanzadas simulador móvil -->
+                        <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-[11px] space-y-2">
+                            <div class="text-slate-400 font-medium">Datos del Dispositivo Móvil Simulado:</div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="text-slate-500 block mb-0.5">Usuario ID:</label>
+                                    <input type="text" id="input-usuario-id" value="usr_esteban_2026" class="w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-slate-200 text-xs focus:border-emerald-500 focus:outline-none font-mono">
+                                </div>
+                                <div>
+                                    <label class="text-slate-500 block mb-0.5">Token JWT simulado:</label>
+                                    <input type="text" id="input-token" value="jwt_sim_smartplant_77a" class="w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-slate-200 text-xs focus:border-emerald-500 focus:outline-none font-mono">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-2.5 bg-slate-950/60 border-t border-slate-800 text-[11px] text-slate-500 flex justify-between items-center">
+                    <span>Protocolo: <code class="text-slate-400">POST /api/v1/auth/qr/*</code></span>
+                    <span>Evento WS: <code class="text-amber-400 font-mono">qr_autorizado</code></span>
+                </div>
+            </section>
+
+
+            <!-- ======================================================== -->
+            <!-- FLUJO 2: Telemetría y Alertas Botánicas Post-Auth        -->
+            <!-- ======================================================== -->
+            <section class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden flex flex-col justify-between shadow-lg">
+                <div class="p-6">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-bold text-sm">2</span>
+                            <h2 class="text-base font-bold text-white">Flujo 2: Telemetría & Alertas</h2>
+                        </div>
+                        <span id="user-channel-badge" class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                            Canal: Desconectado
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-400 mt-3">
+                        Monitorea en vivo la salud de la matera en la sala personal <code class="text-sky-300 font-mono" id="user-room-inline">user_{usuario_id}</code>. Recibe lecturas instantáneas y alertas críticas.
+                    </p>
+
+                    <!-- Tarjetas de Métricas de Telemetría en Vivo -->
+                    <div class="mt-4 grid grid-cols-3 gap-2.5">
+                        <!-- Tarjeta Humedad -->
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-center">
+                            <span class="text-xs text-slate-400 block">💧 Humedad</span>
+                            <span id="metric-humedad" class="text-lg font-bold text-white font-mono mt-1 block">-- %</span>
+                            <span id="metric-humedad-status" class="text-[10px] text-slate-500 font-medium">Sin datos</span>
+                        </div>
+                        <!-- Tarjeta Temperatura -->
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-center">
+                            <span class="text-xs text-slate-400 block">🌡️ Temp</span>
+                            <span id="metric-temp" class="text-lg font-bold text-white font-mono mt-1 block">-- °C</span>
+                            <span id="metric-temp-status" class="text-[10px] text-slate-500 font-medium">Sin datos</span>
+                        </div>
+                        <!-- Tarjeta Luz -->
+                        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-center">
+                            <span class="text-xs text-slate-400 block">☀️ Luz</span>
+                            <span id="metric-luz" class="text-lg font-bold text-white font-mono mt-1 block">-- lx</span>
+                            <span id="metric-luz-status" class="text-[10px] text-slate-500 font-medium">Sin datos</span>
+                        </div>
+                    </div>
+
+                    <!-- Estado Global de la Planta -->
+                    <div class="mt-3 p-3.5 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div id="plant-state-icon" class="text-2xl">🌱</div>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block font-medium">Estado General de Diagnóstico</span>
+                                <span id="plant-state-text" class="text-sm font-bold text-slate-300">Esperando primer diagnóstico...</span>
+                            </div>
+                        </div>
+                        <span id="plant-state-badge" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                            PENDIENTE
+                        </span>
+                    </div>
+
+                    <!-- Botones de Prueba: Disparadores de Alertas y Telemetría -->
+                    <div class="mt-5 space-y-2.5">
+                        <div class="text-xs text-slate-400 font-medium flex items-center justify-between">
+                            <span>Simuladores de Diagnóstico Botánico:</span>
+                            <span class="text-[10px] text-slate-500">Emite a user_{id}</span>
+                        </div>
+
+                        <!-- Botón Crítico (Requerido expresamente por Esteban) -->
+                        <button id="btn-alerta-critica" onclick="simularDiagnostico('CRITICO')" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-rose-700 to-red-600 hover:from-rose-600 hover:to-red-500 text-white font-bold text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-rose-950/50">
+                            <span class="text-base">🚨</span>
+                            <span>Simular Alerta Crítica de Matera (Humedad 5%, Temp 42°C)</span>
+                        </button>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Botón En Riesgo -->
+                            <button onclick="simularDiagnostico('EN_RIESGO')" class="py-2 px-3 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 font-medium text-xs transition flex items-center justify-center space-x-1.5">
+                                <span>⚠️</span>
+                                <span>Simular En Riesgo</span>
+                            </button>
+
+                            <!-- Botón Saludable -->
+                            <button onclick="simularDiagnostico('SALUDABLE')" class="py-2 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-medium text-xs transition flex items-center justify-center space-x-1.5">
+                                <span>🌿</span>
+                                <span>Simular Saludable</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-2.5 bg-slate-950/60 border-t border-slate-800 text-[11px] text-slate-500 flex justify-between items-center">
+                    <span>Protocolo: <code class="text-slate-400">POST /api/v1/diagnosticos</code></span>
+                    <span>Eventos WS: <code class="text-sky-400 font-mono">telemetria_actualizada</code> · <code class="text-rose-400 font-mono">alerta_planta</code></span>
+                </div>
+            </section>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- TERMINAL DE REGISTRO DE EVENTOS WEBSOCKET EN TIEMPO REAL -->
+        <!-- ======================================================== -->
+        <section class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
+            <div class="px-5 py-3.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                    <h3 class="text-xs font-semibold text-slate-300 font-mono">Consola de Eventos WebSocket en Vivo (Inspección Arquitectónica)</h3>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="limpiarLogs()" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[11px] font-mono transition">
+                        Limpiar consola
+                    </button>
+                </div>
+            </div>
+            
+            <div id="ws-console" class="p-4 bg-slate-950 text-slate-300 font-mono text-xs h-56 overflow-y-auto space-y-1.5">
+                <div class="text-slate-500 italic text-[11px]">Esperando inicialización de conexión WebSocket...</div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-8 py-6 border-t border-slate-800/80 text-center text-xs text-slate-500">
+        Matera Inteligente · Arquitectura de Software · Universidad 2026-2
+    </footer>
+
+    <!-- ============================================================ -->
+    <!-- LOGICA JAVASCRIPT DEL CLIENTE ASINCRONO Y WEBSOCKET DUAL     -->
+    <!-- ============================================================ -->
+    <script>
+        // Variables de Estado de la Aplicación
+        const SERVER_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://127.0.0.1:5000';
+        let socket = null;
+        let currentSessionId = null;
+        let currentUsuarioId = 'usr_esteban_2026';
+        let isAudioEnabled = true;
+
+        // Inicialización de Web Audio API para feedback sonoro suave
+        let audioCtx = null;
+        function playChime(type = 'success') {
+            if (!isAudioEnabled) return;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                const now = audioCtx.currentTime;
+                if (type === 'success') {
+                    // Doble beep alegre (tipo escaneo completado)
+                    osc.frequency.setValueAtTime(587.33, now); // D5
+                    osc.frequency.setValueAtTime(880, now + 0.12); // A5
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'alert') {
+                    // Tono de advertencia / sirena botánica
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.linearRampToValueAtTime(220, now + 0.4);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                }
+            } catch (e) {
+                console.warn('Audio feedback no disponible:', e);
+            }
+        }
+
+        function toggleAudio() {
+            isAudioEnabled = !isAudioEnabled;
+            document.getElementById('audio-icon').textContent = isAudioEnabled ? '🔊' : '🔇';
+            document.getElementById('audio-label').textContent = isAudioEnabled ? 'Sonido' : 'Silencio';
+        }
+
+        // ==============================================================
+        // Consola de Registro
+        // ==============================================================
+        function logEvent(tag, tagColor, message, payload = null) {
+            const consoleEl = document.getElementById('ws-console');
+            const now = new Date().toLocaleTimeString();
+            
+            const row = document.createElement('div');
+            row.className = 'flex items-start space-x-2 text-[11px] leading-relaxed';
+            
+            let payloadStr = '';
+            if (payload) {
+                try {
+                    payloadStr = `<pre class="mt-1 p-1.5 bg-slate-900 rounded border border-slate-800 text-[10px] text-emerald-300 overflow-x-auto">${JSON.stringify(payload, null, 2)}</pre>`;
+                } catch(e) {}
+            }
+            
+            row.innerHTML = `
+                <span class="text-slate-600 select-none">[${now}]</span>
+                <span class="px-1.5 py-0.5 rounded font-semibold text-[10px] ${tagColor}">${tag}</span>
+                <div class="flex-1">
+                    <span class="text-slate-300">${message}</span>
+                    ${payloadStr}
+                </div>
+            `;
+            
+            consoleEl.appendChild(row);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function limpiarLogs() {
+            document.getElementById('ws-console').innerHTML = '';
+            logEvent('SISTEMA', 'bg-slate-800 text-slate-400', 'Consola limpiada.');
+        }
+
+        // ==============================================================
+        // Conexión Socket.IO
+        // ==============================================================
+        function initSocket() {
+            logEvent('SOCKET', 'bg-slate-800 text-slate-300', `Conectando a servidor: ${SERVER_URL}`);
+            
+            socket = io(SERVER_URL, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 10
+            });
+
+            socket.on('connect', () => {
+                const indicator = document.getElementById('ws-indicator');
+                const status = document.getElementById('ws-status');
+                indicator.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+                status.textContent = `Conectado (ID: ${socket.id.substring(0, 8)}...)`;
+                status.className = 'text-emerald-400 font-medium';
+                logEvent('WS CONECTADO', 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30', `Conexión establecida con Socket.IO. Socket ID: ${socket.id}`);
+            });
+
+            socket.on('disconnect', () => {
+                const indicator = document.getElementById('ws-indicator');
+                const status = document.getElementById('ws-status');
+                indicator.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+                status.textContent = 'Desconectado de WebSocket';
+                status.className = 'text-rose-400 font-medium';
+                logEvent('WS DESCONECTADO', 'bg-rose-500/20 text-rose-300', 'Se ha perdido la conexión con el servidor WebSocket.');
+            });
+
+            // 1. Escuchar Evento de Autorización QR
+            socket.on('qr_autorizado', (data) => {
+                logEvent('WS RECIBIDO: qr_autorizado', 'bg-emerald-600 text-white font-bold', '¡El dispositivo móvil autorizó la sesión!', data);
+                playChime('success');
+                onQRAutorizadoExitoso(data);
+            });
+
+            // 2. Escuchar Evento de Telemetría Actualizada
+            socket.on('telemetria_actualizada', (data) => {
+                logEvent('WS RECIBIDO: telemetria_actualizada', 'bg-sky-500 text-white font-medium', 'Lectura de sensores actualizada en vivo:', data);
+                actualizarTelemetriaEnPantalla(data);
+            });
+
+            // 3. Escuchar Evento de Alerta de Planta (CRITICO / EN_RIESGO)
+            socket.on('alerta_planta', (data) => {
+                logEvent('WS RECIBIDO: alerta_planta', 'bg-rose-600 text-white font-bold animate-pulse', '¡ALERTA BOTÁNICA DISPARADA!', data);
+                playChime('alert');
+                mostrarAlertaCritica(data);
+            });
+        }
+
+        // ==============================================================
+        // FLUJO 1: Generación y Autorización QR
+        // ==============================================================
+        async function generarSesionQR() {
+            try {
+                logEvent('HTTP POST', 'bg-slate-800 text-amber-300', 'Llamando a /api/v1/auth/qr/generar...');
+                const res = await fetch(`${SERVER_URL}/api/v1/auth/qr/generar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                if (!res.ok) {
+                    throw new Error(`Error en el servidor: HTTP ${res.status}`);
+                }
+
+                const data = await res.json();
+                currentSessionId = data.id || data.session_id;
+                logEvent('HTTP RESP', 'bg-slate-800 text-emerald-400', `Sesión QR generada: ${currentSessionId}`, data);
+
+                // 1. Renderizar QR Code en Pantalla
+                renderQRCode(currentSessionId);
+
+                // 2. Unirse a la sala WebSocket qr_{session_id}
+                const salaQR = `qr_${currentSessionId}`;
+                socket.emit('unirse_sesion_qr', { session_id: currentSessionId }, (ack) => {
+                    logEvent('WS SALA UNIDA', 'bg-amber-500/20 text-amber-300 border border-amber-500/30', `Unido a la sala efímera: ${salaQR}`, ack);
+                });
+
+                // Actualizar interfaz visual
+                document.getElementById('qr-placeholder').classList.add('hidden');
+                document.getElementById('qr-success-box').classList.add('hidden');
+                document.getElementById('qr-active-box').classList.remove('hidden');
+                
+                document.getElementById('qr-room-label').textContent = `Conectado a sala: ${salaQR} (Esperando escaneo...)`;
+                document.getElementById('qr-session-id-display').textContent = `ID Sesión: ${currentSessionId} · Expira en 5 min`;
+                
+                const flowBadge = document.getElementById('qr-flow-badge');
+                flowBadge.textContent = 'Sala QR Activa';
+                flowBadge.className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20';
+
+                // Habilitar botón de simular móvil
+                const btnMovil = document.getElementById('btn-simular-movil');
+                btnMovil.disabled = false;
+                btnMovil.className = 'w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-sky-900/40 cursor-pointer';
+
+            } catch (err) {
+                logEvent('ERROR', 'bg-rose-500 text-white', `Fallo al generar sesión QR: ${err.message}`);
+                alert(`Error al generar sesión: ${err.message}`);
+            }
+        }
+
+        function renderQRCode(sessionId) {
+            const container = document.getElementById('qrcode-canvas');
+            container.innerHTML = '';
+            
+            const payload = `smartplant://auth?session_id=${sessionId}&app=SmartPlantBase`;
+
+            if (typeof QRCode !== 'undefined') {
+                new QRCode(container, {
+                    text: payload,
+                    width: 150,
+                    height: 150,
+                    colorDark: '#0f172a',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } else {
+                // Fallback con API pública de QR si el CDN estuviese offline
+                const img = document.createElement('img');
+                img.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(payload)}`;
+                img.alt = 'Código QR de Inicio de Sesión';
+                img.className = 'rounded';
+                container.appendChild(img);
+            }
+        }
+
+        async function simularEscaneoMovil() {
+            if (!currentSessionId) {
+                alert('Primero genera una sesión QR.');
+                return;
+            }
+
+            const usuarioId = document.getElementById('input-usuario-id').value.trim() || 'usr_esteban_2026';
+            const token = document.getElementById('input-token').value.trim() || 'jwt_sim_smartplant_77a';
+            currentUsuarioId = usuarioId;
+
+            logEvent('SIMULADOR MÓVIL', 'bg-sky-600 text-white', `Móvil escanea QR y autoriza sesión en /api/v1/auth/qr/${currentSessionId}/autorizar...`);
+
+            try {
+                const res = await fetch(`${SERVER_URL}/api/v1/auth/qr/${currentSessionId}/autorizar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        usuario_id: usuarioId,
+                        token: token
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.mensaje || `HTTP ${res.status}`);
+                }
+                logEvent('HTTP RESP', 'bg-slate-800 text-emerald-400', 'Respuesta HTTP 200 de Autorización móvil recibida.', data);
+                // NOTA: No actualizamos la UI aquí directamente.
+                // La UI reacciona instantáneamente cuando llega el evento WebSocket `qr_autorizado` emitido por el backend!
+            } catch (err) {
+                logEvent('ERROR', 'bg-rose-500 text-white', `Error en autorización móvil: ${err.message}`);
+                alert(`Error al autorizar: ${err.message}`);
+            }
+        }
+
+        function onQRAutorizadoExitoso(data) {
+            // Actualizar vista del QR a éxito
+            document.getElementById('qr-active-box').classList.add('hidden');
+            document.getElementById('qr-success-box').classList.remove('hidden');
+
+            document.getElementById('auth-user-display').textContent = data.usuario_id || currentUsuarioId;
+            document.getElementById('auth-token-display').textContent = data.token ? `${data.token.substring(0, 16)}...` : 'TOKEN_VALIDO';
+            document.getElementById('auth-room-display').textContent = `user_${data.usuario_id || currentUsuarioId}`;
+
+            const flowBadge = document.getElementById('qr-flow-badge');
+            flowBadge.textContent = '¡Sesión Autorizada!';
+            flowBadge.className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+
+            // Deshabilitar botón de móvil para evitar doble envío
+            const btnMovil = document.getElementById('btn-simular-movil');
+            btnMovil.disabled = true;
+            btnMovil.className = 'w-full py-2.5 px-4 rounded-xl bg-slate-800 text-slate-500 cursor-not-allowed font-medium text-xs transition flex items-center justify-center space-x-2 border border-slate-700/60';
+
+            // 2. Conectar automáticamente a la sala del usuario post-auth
+            conectarCanalUsuario(data.usuario_id || currentUsuarioId);
+        }
+
+        // ==============================================================
+        // FLUJO 2: Sala Post-Auth de Usuario y Telemetría
+        // ==============================================================
+        function conectarCanalUsuario(usuarioId) {
+            currentUsuarioId = usuarioId;
+            const salaUsuario = `user_${usuarioId}`;
+
+            socket.emit('unirse_canal_usuario', { usuario_id: usuarioId }, (ack) => {
+                logEvent('WS SALA UNIDA', 'bg-sky-500/20 text-sky-300 border border-sky-500/30', `Unido al canal personal de usuario: ${salaUsuario}`, ack);
+            });
+
+            // Actualizar badges
+            const badge = document.getElementById('user-channel-badge');
+            badge.textContent = `🟢 Conectado: ${salaUsuario}`;
+            badge.className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30';
+            
+            document.getElementById('user-room-inline').textContent = salaUsuario;
+        }
+
+        function actualizarTelemetriaEnPantalla(data) {
+            const vals = data.valores || {};
+            
+            // Humedad
+            if (vals.humedad !== undefined) {
+                const el = document.getElementById('metric-humedad');
+                el.textContent = `${vals.humedad} %`;
+                const st = document.getElementById('metric-humedad-status');
+                st.textContent = vals.humedad < 20 ? 'Bajo' : (vals.humedad > 70 ? 'Alto' : 'Óptimo');
+                st.className = `text-[10px] font-medium ${vals.humedad < 20 || vals.humedad > 70 ? 'text-amber-400' : 'text-emerald-400'}`;
+            }
+
+            // Temperatura
+            if (vals.temperatura !== undefined) {
+                const el = document.getElementById('metric-temp');
+                el.textContent = `${vals.temperatura} °C`;
+                const st = document.getElementById('metric-temp-status');
+                st.textContent = vals.temperatura < 15 ? 'Frío' : (vals.temperatura > 30 ? 'Caliente' : 'Óptimo');
+                st.className = `text-[10px] font-medium ${vals.temperatura < 15 || vals.temperatura > 30 ? 'text-amber-400' : 'text-emerald-400'}`;
+            }
+
+            // Luz
+            if (vals.luz !== undefined) {
+                const el = document.getElementById('metric-luz');
+                el.textContent = `${vals.luz} lx`;
+                const st = document.getElementById('metric-luz-status');
+                st.textContent = vals.luz < 300 ? 'Tenue' : 'Adecuada';
+                st.className = `text-[10px] font-medium ${vals.luz < 300 ? 'text-amber-400' : 'text-emerald-400'}`;
+            }
+
+            // Estado general
+            if (data.estado) {
+                actualizarEstadoGeneral(data.estado);
+            }
+        }
+
+        function actualizarEstadoGeneral(estado) {
+            const icon = document.getElementById('plant-state-icon');
+            const text = document.getElementById('plant-state-text');
+            const badge = document.getElementById('plant-state-badge');
+
+            if (estado === 'CRITICO') {
+                icon.textContent = '🥀';
+                text.textContent = 'Matera en Estado Crítico';
+                badge.textContent = 'CRÍTICO';
+                badge.className = 'px-2.5 py-1 rounded text-xs font-bold bg-rose-600 text-white';
+            } else if (estado === 'EN_RIESGO') {
+                icon.textContent = '⚠️';
+                text.textContent = 'Matera con Desviaciones Ambientales';
+                badge.textContent = 'EN RIESGO';
+                badge.className = 'px-2.5 py-1 rounded text-xs font-bold bg-amber-500 text-slate-950';
+            } else {
+                icon.textContent = '🌿';
+                text.textContent = 'Condiciones Ambientales Óptimas';
+                badge.textContent = 'SALUDABLE';
+                badge.className = 'px-2.5 py-1 rounded text-xs font-bold bg-emerald-500 text-slate-950';
+            }
+        }
+
+        function mostrarAlertaCritica(alerta) {
+            const container = document.getElementById('live-alert-container');
+            const title = document.getElementById('alert-title');
+            const summary = document.getElementById('alert-summary');
+            const badge = document.getElementById('alert-estado-badge');
+            const recList = document.getElementById('alert-recommendations');
+            const timestamp = document.getElementById('alert-timestamp');
+
+            timestamp.textContent = `WebSocket recibido a las ${new Date().toLocaleTimeString()} hacia user_${currentUsuarioId}`;
+
+            badge.textContent = alerta.estado || 'ALERTA';
+            badge.className = alerta.estado === 'CRITICO' 
+                ? 'px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-500 text-white'
+                : 'px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500 text-slate-950';
+
+            title.textContent = alerta.estado === 'CRITICO'
+                ? `¡Alerta Crítica en Matera! (${alerta.especie || 'Sansevieria'})`
+                : `Desviación Ambiental Detectada (${alerta.especie || 'Sansevieria'})`;
+
+            // Construir resumen de parámetros afectados
+            const paramsAfectados = (alerta.parametros || [])
+                .filter(p => p.estado !== 'OPTIMO')
+                .map(p => `${p.parametro}: ${p.valor} (Esperado: ${p.rango_min}-${p.rango_max})`)
+                .join(', ');
+
+            summary.textContent = paramsAfectados 
+                ? `Parámetros con desviación: ${paramsAfectados}` 
+                : 'Se han detectado parámetros ambientales fuera del rango biológico soportado.';
+
+            // Lista de recomendaciones
+            recList.innerHTML = '';
+            const recs = alerta.recomendaciones || ['Revisar condiciones generales de la planta.'];
+            recs.forEach(rec => {
+                const li = document.createElement('li');
+                li.className = 'flex items-start space-x-1.5';
+                li.innerHTML = `<span class="text-rose-400 font-bold">•</span><span>${rec}</span>`;
+                recList.appendChild(li);
+            });
+
+            container.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function dismissAlert() {
+            document.getElementById('live-alert-container').classList.add('hidden');
+        }
+
+        // ==============================================================
+        // Simular Diagnósticos (Dispara peticiones REST a /api/v1/diagnosticos)
+        // ==============================================================
+        async function simularDiagnostico(tipo) {
+            // Asegurarse de tener un canal de usuario activo
+            const usuarioId = currentUsuarioId || 'usr_esteban_2026';
+            conectarCanalUsuario(usuarioId);
+
+            let payload = {
+                especie: 'sansevieria',
+                usuario_id: usuarioId
+            };
+
+            if (tipo === 'CRITICO') {
+                payload.humedad = 5.0;        // Extremadamente seco (rango normal 20-50%)
+                payload.temperatura = 42.0;   // Peligrosamente caliente (rango normal 15-29°C)
+                payload.luz = 90.0;           // Luz insuficiente
+            } else if (tipo === 'EN_RIESGO') {
+                payload.humedad = 15.0;       // Ligeramente baja
+                payload.temperatura = 22.0;   // Normal
+                payload.luz = 800.0;          // Normal
+            } else {
+                // SALUDABLE
+                payload.humedad = 35.0;       // Óptimo
+                payload.temperatura = 23.0;   // Óptimo
+                payload.luz = 850.0;          // Óptimo
+            }
+
+            logEvent('HTTP POST', 'bg-slate-800 text-sky-300', `Disparando POST /api/v1/diagnosticos (${tipo}) con usuario_id: ${usuarioId}...`, payload);
+
+            try {
+                const res = await fetch(`${SERVER_URL}/api/v1/diagnosticos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.mensaje || `HTTP ${res.status}`);
+                }
+
+                logEvent('HTTP RESP', 'bg-slate-800 text-emerald-400', `Diagnóstico evaluado con éxito (Estado: ${data.estado}).`, data);
+                // NOTA: El servidor emitirá automáticamente 'telemetria_actualizada' y 'alerta_planta' (si aplica)
+                // por WebSocket a la sala user_{usuario_id}, por lo que la pantalla reaccionará vía eventos WebSocket.
+            } catch (err) {
+                logEvent('ERROR', 'bg-rose-500 text-white', `Error al evaluar diagnóstico: ${err.message}`);
+                alert(`Error en diagnóstico: ${err.message}`);
+            }
+        }
+
+        // ==============================================================
+        // Arranque Inicial
+        // ==============================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            initSocket();
+            logEvent('SISTEMA', 'bg-slate-800 text-emerald-400', 'Demo inicializada y lista para interactuar.');
+        });
+    </script>
+</body>
+</html>

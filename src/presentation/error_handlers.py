@@ -10,7 +10,12 @@ Asegura que todas las respuestas de error tengan un contrato uniforme:
 from flask import Flask, jsonify
 from werkzeug.exceptions import HTTPException
 
-from src.domain.exceptions import EspecieNoSoportadaError, ParametroInvalidoError
+from src.domain.exceptions import (
+    EspecieNoSoportadaError,
+    ParametroInvalidoError,
+    SesionQRInvalidaError,
+    SesionQRNoEncontradaError,
+)
 
 
 def registrar_manejadores_error(app: Flask) -> None:
@@ -25,6 +30,24 @@ def registrar_manejadores_error(app: Flask) -> None:
         }
         return jsonify(cuerpo), 404
 
+    @app.errorhandler(SesionQRNoEncontradaError)
+    def manejar_sesion_qr_no_encontrada(error: SesionQRNoEncontradaError):
+        cuerpo = {
+            "error": "SESION_QR_NO_ENCONTRADA",
+            "mensaje": str(error),
+            "detalle": {"sesion_id": error.sesion_id},
+        }
+        return jsonify(cuerpo), 404
+
+    @app.errorhandler(SesionQRInvalidaError)
+    def manejar_sesion_qr_invalida(error: SesionQRInvalidaError):
+        cuerpo = {
+            "error": "SESION_QR_INVALIDA",
+            "mensaje": str(error),
+            "detalle": {},
+        }
+        return jsonify(cuerpo), 400
+
     @app.errorhandler(ParametroInvalidoError)
     def manejar_parametro_invalido(error: ParametroInvalidoError):
         cuerpo = {
@@ -33,6 +56,7 @@ def registrar_manejadores_error(app: Flask) -> None:
             "detalle": {"campo": error.campo},
         }
         return jsonify(cuerpo), 400
+
 
     @app.errorhandler(400)
     def manejar_bad_request_http(error):

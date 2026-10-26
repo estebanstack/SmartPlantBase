@@ -118,3 +118,20 @@ def test_endpoint_evaluar_error_valor_fisicamente_imposible(client):
     datos = response.get_json()
     assert datos["error"] == "PARAMETRO_INVALIDO"
     assert datos["detalle"]["campo"] == "humedad"
+
+
+def test_endpoint_servir_demo_websocket(client):
+    """Verifica que el servidor entregue la interfaz interactiva demo de WebSockets."""
+    response = client.get("/demo")
+    assert response.status_code == 200
+    assert b"SmartPlant" in response.data
+    assert b"Demo Arquitectura Dual" in response.data
+    assert b"Simular Alerta Cr" in response.data
+
+
+def test_endpoint_servir_index(client):
+    """Verifica que la raíz entregue el archivo index.html."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"Diagn" in response.data
+

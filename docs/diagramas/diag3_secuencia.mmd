@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    actor U as 👤 Usuario Autenticado
+    participant App as 📱 App Web / Frontend
+    participant API as ⚙️ Backend (Clean Architecture)
+    participant BD as 🗄️ SQLite Database
+
+    U->>App: Escanea QR en carcasa física ("MAT-001")
+    App->>API: GET /api/v1/materas/MAT-001/disponibilidad
+    API->>BD: SELECT * FROM materas WHERE id = 'MAT-001'
+    BD-->>API: Matera existe y usuario_id IS NULL (Libre)
+    API-->>App: 200 OK: Matera disponible
+
+    U->>App: Selecciona especie ("Albahaca") y nombra apodo ("Albahaca Ventana")
+    App->>API: POST /api/v1/materas/vincular { qr, especie, apodo }
+    
+    rect rgb(235, 247, 238)
+        Note over API,BD: Transacción Atómica ACID Coordinada
+        API->>BD: UPDATE materas SET usuario_id = 'user_123' WHERE id = 'MAT-001'
+        API->>BD: INSERT INTO plantas (id, usuario_id, matera_id, especie, apodo, activa)
+    end
+
+    BD-->>API: Transacción confirmada (COMMIT)
+    API-->>App: 201 Created { planta_id, status: "activa" }
+    App-->>U: Redirección automática al Dashboard de Monitoreo Activo
