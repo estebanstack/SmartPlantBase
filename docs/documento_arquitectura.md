@@ -87,20 +87,43 @@ code {
     border-radius: 3px !important;
     border: none !important;
 }
-pre, pre code {
+pre {
     font-family: "Liberation Mono", Consolas, monospace !important;
     font-size: 7.2pt !important;
-    line-height: 1.2 !important;
+    line-height: 1.22 !important;
     background-color: #f8fafc !important;
     color: #0f172a !important;
     border: 1px solid #cbd5e1 !important;
     border-radius: 4px !important;
-    padding: 4px 6px !important;
+    padding: 5px 7px !important;
     margin: 3px 0 !important;
     white-space: pre-wrap !important;
     word-break: break-all !important;
     break-inside: avoid;
     page-break-inside: avoid;
+}
+pre code {
+    display: block !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
+    color: inherit !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    white-space: pre-wrap !important;
+}
+pre code * {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    text-decoration: none !important;
 }
 table {
     width: 100% !important;
