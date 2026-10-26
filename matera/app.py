@@ -11,6 +11,8 @@ from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
+from matera.adaptadores.salida.historial_bd import BdHistorialYPlantasAdapter
+from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
 from matera.dominio.excepciones import (
     AccesoNoAutorizadoPlantaError,
@@ -141,14 +143,18 @@ def create_app(
     # 2. Selección del adaptador de TablaReferenciaPort (R4: CSV vs SQLite)
     modo_tabla = (driver_tabla or os.getenv("TABLA_REFERENCIA_DRIVER", "csv")).strip().lower()
     if modo_tabla == "bd":
-        # Se conectará con BdTablaReferenciaAdapter en Commit 2
-        tabla_referencia = CsvTablaReferenciaAdapter(ruta_csv)
+        tabla_referencia = BdTablaReferenciaAdapter(ruta_bd)
     else:
         tabla_referencia = CsvTablaReferenciaAdapter(ruta_csv)
 
-    # 3. Núcleo de Dominio (Casos de uso / Puertos de entrada)
+    # 3. Adaptador de persistencia SQLite para historial de lecturas y usuarios/plantas (R5, R7)
+    persistencia_bd = BdHistorialYPlantasAdapter(ruta_bd)
+
+    # 4. Núcleo de Dominio (Casos de uso / Puertos de entrada)
     servicio_dominio = ServicioMateraDominio(
         tabla_referencia=tabla_referencia,
+        historial_lecturas=persistencia_bd,
+        usuarios_plantas=persistencia_bd,
     )
 
     # 4. Registro de Adaptadores de Entrada (Blueprints)

@@ -15,6 +15,10 @@ env/
 .coverage
 htmlcov/
 
+# Local databases
+*.db
+
+
 # IDE & Editor files
 .vscode/
 .idea/
