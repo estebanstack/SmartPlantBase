@@ -128,7 +128,7 @@ SmartPlantBase/
 │   ├── test_seguridad_jwt.py         # Pruebas de JWT y regla de propiedad
 │   └── test_api_dispositivos.py      # Pruebas del endpoint de sensores ESP32
 ├── docs/
-│   ├── plan_fase2_arquitectura_hexagonal.md
+│   ├── enunciados/                   # Enunciados de la Fase 1 y la Fase 2
 │   └── documento_arquitectura.md     # Documento entregable (máximo 4 páginas)
 ├── requirements.txt
 └── README.md
