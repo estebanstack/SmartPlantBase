@@ -40,7 +40,7 @@
   <text x="35" y="96" class="card-text">POST /api/v1/diagnosticos (R1)</text>
   <text x="35" y="110" class="card-text">POST /api/auth/login · registro (R7)</text>
   <text x="35" y="124" class="card-text">GET  /api/plantas/{id}/estado (R5, R6)</text>
-  <text x="35" y="138" class="card-text">GET  /api/plantas/{id}/historial</text>
+  <text x="35" y="138" class="card-text">POST /api/plantas · …/historial (R5, R7)</text>
 
   <!-- Card 2: api_dispositivos.py -->
   <rect x="25" y="162" width="210" height="85" class="bg-card" />
@@ -70,9 +70,9 @@
   <!-- Sub-block: Puertos de Entrada -->
   <rect x="295" y="52" width="330" height="72" class="bg-port-in" />
   <text x="305" y="68" class="badge-in">PUERTOS DE ENTRADA (matera/dominio/puertos/entrada.py)</text>
-  <text x="305" y="84" class="card-text">• ValidarLecturaPort (R1: validación catálogo botánico)</text>
-  <text x="305" y="97" class="card-text">• RegistrarLecturaPort (R2: telemetría sensor y evaluación)</text>
-  <text x="305" y="110" class="card-text">• ConsultarEstado/Historial (R5, R6) · Autenticar (R7)</text>
+  <text x="305" y="84" class="card-text">• ValidarLectura · ConsultarEspecies (R1)</text>
+  <text x="305" y="97" class="card-text">• RegistrarLectura (R2) · ConsultarEstado/Historial (R5, R6)</text>
+  <text x="305" y="110" class="card-text">• ListarPlantas · RegistrarPlanta · EmitirTokenDisp. · Autenticar (R7)</text>
 
   <!-- Sub-block: Dominio Puro -->
   <rect x="295" y="132" width="330" height="152" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2" rx="6px" />
@@ -92,7 +92,7 @@
   <text x="305" y="324" class="card-text">• TablaReferenciaPort (R4: consulta rangos óptimos)</text>
   <text x="305" y="338" class="card-text">• HistorialLecturasPort (R5: persistencia y última lectura)</text>
   <text x="305" y="352" class="card-text">• UsuariosPort · PlantasPort (R7: usuarios y sus plantas)</text>
-  <text x="305" y="366" class="card-text">• EmisorTokenPort (R7: abstracción para emisión de tokens)</text>
+  <text x="305" y="366" class="card-text">• EmisorTokenPort · HasherContrasenaPort (R7)</text>
   <text x="305" y="382" class="card-text" fill="#b45309">El dominio declara qué necesita; la infraestructura lo implementa</text>
 
   <!-- ZONE 3: ADAPTADORES DE SALIDA (DRIVEN) -->
@@ -106,29 +106,27 @@
   <text x="695" y="96" class="card-text">CsvTablaReferenciaAdapter (CSV)</text>
   <text x="695" y="110" class="card-text">BdTablaReferenciaAdapter (SQLite)</text>
   <text x="695" y="126" class="card-text">Intercambiables por configuración</text>
-  <text x="695" y="140" class="card-text">mediante variable TABLA_REFERENCIA_DRIVER</text>
+  <text x="695" y="140" class="card-text">(variable TABLA_REFERENCIA_DRIVER)</text>
 
-  <!-- Card 6: Historial y Plantas BD (R5, R7) -->
+  <!-- Card 6: Persistencia SQLite (R5, R7) -->
   <rect x="685" y="162" width="210" height="110" class="bg-card" />
-  <text x="695" y="180" class="card-title">historial_bd.py (SQLite)</text>
-  <text x="695" y="194" class="card-sub">• Implementa:</text>
-  <text x="695" y="208" class="card-text">  - HistorialLecturasPort (R5)</text>
-  <text x="695" y="222" class="card-text">  - UsuariosPort y PlantasPort (R7)</text>
-  <text x="695" y="238" class="card-text">BdHistorialYPlantasAdapter:</text>
-  <text x="695" y="252" class="card-text">Persistencia relacional de lecturas,</text>
-  <text x="695" y="266" class="card-text">diagnósticos, usuarios y dispositivos</text>
+  <text x="695" y="180" class="card-title">SQLite: un adaptador por puerto</text>
+  <text x="695" y="196" class="card-text">historial_bd.py → HistorialLecturasPort</text>
+  <text x="695" y="210" class="card-text">plantas_bd.py → PlantasPort</text>
+  <text x="695" y="224" class="card-text">usuarios_bd.py → UsuariosPort</text>
+  <text x="695" y="240" class="card-text">sqlite_bd.py: conexión y creación</text>
+  <text x="695" y="254" class="card-text">con data/bd/*.sql (esquema y carga)</text>
 
-  <!-- Card 7: Emisor JWT (R7) -->
+  <!-- Card 7: Tokens y contraseñas (R7) -->
   <rect x="685" y="282" width="210" height="80" class="bg-card" />
-  <text x="695" y="300" class="card-title">emisor_jwt.py (PyJWT)</text>
-  <text x="695" y="314" class="card-sub">• Implementa EmisorTokenPort (R7)</text>
-  <text x="695" y="330" class="card-text">JwtEmisorTokenAdapter:</text>
-  <text x="695" y="344" class="card-text">Único punto que firma tokens JWT</text>
-  <text x="695" y="358" class="card-text">con HS256 y claims segregados</text>
+  <text x="695" y="300" class="card-title">Seguridad (R7)</text>
+  <text x="695" y="316" class="card-text">emisor_jwt.py → EmisorTokenPort</text>
+  <text x="695" y="330" class="card-text">  (PyJWT, alcances usuario/dispositivo)</text>
+  <text x="695" y="346" class="card-text">hasher_werkzeug.py → HasherContrasenaPort</text>
 
   <!-- Card 8: Composition Root (app.py) -->
   <rect x="685" y="370" width="210" height="28" fill="#e2e8f0" stroke="#64748b" stroke-width="1" rx="4px" />
-  <text x="695" y="388" class="card-title" font-size="10px">matera/app.py: Punto de Composición</text>
+  <text x="695" y="388" class="card-title" font-size="10px">matera/app.py: composición</text>
 
   <!-- ARROWS / CONNECTORS -->
   <!-- Entrada -> Puertos Entrada -->
