@@ -15,7 +15,7 @@ from matera.dominio.excepciones import (
     UsuarioYaExisteError,
 )
 from matera.dominio.modelo import (
-    LIMITES_FISICOS,
+    PARAMETROS_AMBIENTALES,
     PARAMETROS_SOPORTADOS,
     Diagnostico,
     Especie,
@@ -23,7 +23,7 @@ from matera.dominio.modelo import (
     EstadoParametro,
     EstadoPlanta,
     Lectura,
-    LimiteFisico,
+    ParametroAmbiental,
     ParametroEvaluado,
     Planta,
     PlantaRegistrada,
@@ -46,8 +46,8 @@ __all__ = [
     "CredencialesInvalidasError",
     "EstadoParametro",
     "EstadoPlanta",
-    "LimiteFisico",
-    "LIMITES_FISICOS",
+    "ParametroAmbiental",
+    "PARAMETROS_AMBIENTALES",
     "PARAMETROS_SOPORTADOS",
     "RangoParametro",
     "Especie",

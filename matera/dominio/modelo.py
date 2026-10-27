@@ -25,23 +25,54 @@ class EstadoPlanta(str, Enum):
 
 
 @dataclass(frozen=True)
-class LimiteFisico:
+class ParametroAmbiental:
     """
-    Límite de verosimilitud física de una variable ambiental.
-    Define los valores que un sensor puede medir antes de considerarse lectura físicamente imposible.
+    Todo lo que el dominio sabe de una variable ambiental, en un solo lugar:
+    su unidad, el rango que un sensor puede medir (fuera de él la lectura es físicamente
+    imposible) y qué recomendar cuando queda por debajo o por encima del rango óptimo.
+    Agregar un parámetro (por ejemplo pH) es agregar una entrada en PARAMETROS_AMBIENTALES;
+    el evaluador (validador.py) no cambia.
     """
-    minimo: float
-    maximo: float
     unidad: str
+    minimo_fisico: float
+    maximo_fisico: float
+    recomendacion_bajo: str
+    recomendacion_alto: str
+
+    def recomendacion(self, estado: "EstadoParametro") -> Optional[str]:
+        """Qué hacer si el parámetro quedó BAJO o ALTO; None si está OPTIMO."""
+        if estado == EstadoParametro.BAJO:
+            return self.recomendacion_bajo
+        if estado == EstadoParametro.ALTO:
+            return self.recomendacion_alto
+        return None
 
 
-LIMITES_FISICOS: Mapping[str, LimiteFisico] = MappingProxyType({
-    "humedad": LimiteFisico(minimo=0.0, maximo=100.0, unidad="%"),
-    "luz": LimiteFisico(minimo=0.0, maximo=150000.0, unidad="lux"),
-    "temperatura": LimiteFisico(minimo=-50.0, maximo=80.0, unidad="°C"),
+PARAMETROS_AMBIENTALES: Mapping[str, ParametroAmbiental] = MappingProxyType({
+    "humedad": ParametroAmbiental(
+        unidad="%",
+        minimo_fisico=0.0,
+        maximo_fisico=100.0,
+        recomendacion_bajo="La humedad del sustrato está por debajo del rango recomendado: riegue moderadamente.",
+        recomendacion_alto="La humedad del sustrato supera el rango recomendado: suspenda el riego y facilite el drenaje.",
+    ),
+    "luz": ParametroAmbiental(
+        unidad="lux",
+        minimo_fisico=0.0,
+        maximo_fisico=150000.0,
+        recomendacion_bajo="El nivel de luz es insuficiente para esta especie: ubique la planta en un lugar con mayor exposición solar.",
+        recomendacion_alto="El nivel de luz es excesivo: proteja la planta con sombra parcial o retírela de la radiación solar directa.",
+    ),
+    "temperatura": ParametroAmbiental(
+        unidad="°C",
+        minimo_fisico=-50.0,
+        maximo_fisico=80.0,
+        recomendacion_bajo="La temperatura ambiental es demasiado baja: traslade la planta a un espacio más cálido o protegido.",
+        recomendacion_alto="La temperatura ambiental es excesiva: ventile el espacio o traslade la planta a un lugar fresco.",
+    ),
 })
 
-PARAMETROS_SOPORTADOS: Tuple[str, ...] = tuple(LIMITES_FISICOS.keys())
+PARAMETROS_SOPORTADOS: Tuple[str, ...] = tuple(PARAMETROS_AMBIENTALES.keys())
 
 
 @dataclass(frozen=True)
@@ -91,7 +122,7 @@ class Lectura:
 
         normalizados: Dict[str, float] = {}
         for nombre, valor in self.valores.items():
-            if nombre not in LIMITES_FISICOS:
+            if nombre not in PARAMETROS_AMBIENTALES:
                 raise ParametroInvalidoError(
                     nombre, f"El parámetro '{nombre}' no es una variable ambiental reconocida."
                 )
@@ -99,12 +130,13 @@ class Lectura:
             if isinstance(valor, bool) or not isinstance(valor, (int, float)):
                 raise ParametroInvalidoError(nombre, f"El valor de '{nombre}' debe ser numérico.")
 
-            limite = LIMITES_FISICOS[nombre]
-            if not (limite.minimo <= valor <= limite.maximo):
+            parametro = PARAMETROS_AMBIENTALES[nombre]
+            if not (parametro.minimo_fisico <= valor <= parametro.maximo_fisico):
+                u = parametro.unidad
                 raise ParametroInvalidoError(
                     nombre,
-                    f"El valor de {nombre} ({valor}{limite.unidad}) está fuera del rango "
-                    f"físicamente posible ({limite.minimo}{limite.unidad} - {limite.maximo}{limite.unidad})."
+                    f"El valor de {nombre} ({valor}{u}) está fuera del rango "
+                    f"físicamente posible ({parametro.minimo_fisico}{u} - {parametro.maximo_fisico}{u})."
                 )
 
             normalizados[nombre] = float(valor)

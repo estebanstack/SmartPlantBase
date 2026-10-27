@@ -17,6 +17,7 @@ from matera.dominio.excepciones import (
     UsuarioYaExisteError,
 )
 from matera.dominio.modelo import (
+    PARAMETROS_AMBIENTALES,
     Diagnostico,
     EstadoParametro,
     EstadoPlanta,
@@ -361,3 +362,33 @@ def test_token_de_dispositivo_solo_lo_pide_el_dueno(fake_plantas, fake_emisor):
 
     with pytest.raises(AccesoNoAutorizadoPlantaError):
         caso_uso.emitir_token_dispositivo(usuario_id="usr-carlos", planta_id="planta-01")
+
+
+# --- Catálogo único de parámetros (OCP: agregar pH no toca el evaluador) ---------
+
+@pytest.mark.parametrize("parametro, valor, estado", [
+    ("humedad", 5.0, EstadoParametro.BAJO),
+    ("humedad", 90.0, EstadoParametro.ALTO),
+    ("luz", 50.0, EstadoParametro.BAJO),
+    ("luz", 5000.0, EstadoParametro.ALTO),
+    ("temperatura", 5.0, EstadoParametro.BAJO),
+    ("temperatura", 35.0, EstadoParametro.ALTO),
+])
+def test_la_recomendacion_sale_del_catalogo_de_parametros(fake_tabla, parametro, valor, estado):
+    """El evaluador no tiene textos propios: cada recomendación es la del catálogo del dominio."""
+    valores = {"humedad": 30.0, "luz": 500.0, "temperatura": 20.0}
+    valores[parametro] = valor
+    especie = fake_tabla.obtener_por_nombre("sansevieria")
+
+    diagnostico = ValidadorDeEstado.evaluar(Lectura(especie="sansevieria", valores=valores), especie)
+
+    esperado = PARAMETROS_AMBIENTALES[parametro].recomendacion(estado)
+    assert diagnostico.recomendaciones == [esperado]
+
+
+def test_cada_parametro_del_catalogo_tiene_limites_y_recomendaciones():
+    for nombre, parametro in PARAMETROS_AMBIENTALES.items():
+        assert parametro.minimo_fisico < parametro.maximo_fisico, nombre
+        assert parametro.recomendacion(EstadoParametro.BAJO), nombre
+        assert parametro.recomendacion(EstadoParametro.ALTO), nombre
+        assert parametro.recomendacion(EstadoParametro.OPTIMO) is None

@@ -8,7 +8,7 @@ y un parámetro nuevo (por ejemplo pH) solo necesita sus columnas en los datos.
 """
 from typing import Mapping, Tuple
 
-from matera.dominio.modelo import LIMITES_FISICOS, PARAMETROS_SOPORTADOS, Especie, RangoParametro
+from matera.dominio.modelo import PARAMETROS_AMBIENTALES, PARAMETROS_SOPORTADOS, Especie, RangoParametro
 
 _PREFIJOS: Mapping[str, str] = {"temperatura": "temp"}
 
@@ -35,6 +35,6 @@ def especie_desde_fila(nombre: str, fila: Mapping[str, object]) -> Especie:
         rangos[parametro] = RangoParametro(
             minimo=float(fila[col_min]),
             maximo=float(fila[col_max]),
-            unidad=LIMITES_FISICOS[parametro].unidad,
+            unidad=PARAMETROS_AMBIENTALES[parametro].unidad,
         )
     return Especie(nombre=nombre, rangos=rangos)
