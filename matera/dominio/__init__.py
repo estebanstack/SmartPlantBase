@@ -27,9 +27,11 @@ from matera.dominio.modelo import (
     ParametroEvaluado,
     Planta,
     RangoParametro,
+    RegistroLectura,
+    SesionUsuario,
     Usuario,
 )
-from matera.dominio.validador import ServicioMateraDominio, ValidadorDeEstado
+from matera.dominio.validador import ValidadorDeEstado
 
 __all__ = [
     "DominioError",
@@ -54,6 +56,7 @@ __all__ = [
     "Planta",
     "Usuario",
     "EstadoActualPlanta",
+    "RegistroLectura",
+    "SesionUsuario",
     "ValidadorDeEstado",
-    "ServicioMateraDominio",
 ]

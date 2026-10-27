@@ -25,7 +25,15 @@ from matera.dominio.excepciones import (
     PlantaNoEncontradaError,
     UsuarioYaExisteError,
 )
-from matera.dominio.validador import ServicioMateraDominio
+from matera.dominio.casos_uso import (
+    AutenticarUsuario,
+    ConsultarEspecies,
+    ConsultarEstado,
+    ConsultarHistorial,
+    ListarPlantas,
+    RegistrarLectura,
+    ValidarLectura,
+)
 
 
 def registrar_manejadores_error(app: Flask) -> None:
@@ -149,34 +157,41 @@ def create_app(
     else:
         tabla_referencia = CsvTablaReferenciaAdapter(ruta_csv)
 
-    # 3. Adaptador de persistencia SQLite para historial de lecturas y usuarios/plantas (R5, R7)
+    # 3. Adaptador SQLite: implementa HistorialLecturasPort, UsuariosPort y PlantasPort (R5, R7)
     persistencia_bd = BdHistorialYPlantasAdapter(ruta_bd)
+    historial = persistencia_bd
+    usuarios = persistencia_bd
+    plantas = persistencia_bd
 
-    # 4. Adaptador de Emisión de Tokens JWT (R7)
+    # 4. Adaptador de emisión de tokens JWT (R7)
     clave_jwt = os.getenv("JWT_SECRET", "matera-secret-key-arquitectura-2026-segura")
     emisor_token = JwtEmisorTokenAdapter(secret_key=clave_jwt)
 
-    # 5. Núcleo de Dominio (Casos de uso / Puertos de entrada)
-    servicio_dominio = ServicioMateraDominio(
-        tabla_referencia=tabla_referencia,
-        historial_lecturas=persistencia_bd,
-        usuarios_plantas=persistencia_bd,
-        emisor_token=emisor_token,
-    )
+    # 5. Casos de uso del dominio: cada uno recibe solo los puertos de salida que necesita
+    validar_lectura = ValidarLectura(tabla_referencia)
+    consultar_especies = ConsultarEspecies(tabla_referencia)
+    registrar_lectura = RegistrarLectura(tabla_referencia, plantas, historial)
+    consultar_estado = ConsultarEstado(tabla_referencia, plantas, historial)
+    consultar_historial = ConsultarHistorial(plantas, historial)
+    listar_plantas = ListarPlantas(plantas)
+    autenticar = AutenticarUsuario(usuarios, emisor_token)
 
-    # 6. Registro de Adaptadores de Entrada (Blueprints)
+    # 6. Adaptadores de entrada (Blueprints): cada endpoint recibe solo su puerto de entrada
     app.register_blueprint(crear_api_front_blueprint(
-        puerto_validacion=servicio_dominio,
-        puerto_consultas=servicio_dominio,
-        puerto_auth=servicio_dominio,
+        validar_lectura=validar_lectura,
+        consultar_especies=consultar_especies,
+        consultar_estado=consultar_estado,
+        consultar_historial=consultar_historial,
+        listar_plantas=listar_plantas,
+        autenticar=autenticar,
         emisor_jwt=emisor_token,
     ))
     app.register_blueprint(crear_api_dispositivos_blueprint(
-        puerto_registro=servicio_dominio,
+        puerto_registro=registrar_lectura,
         emisor_jwt=emisor_token,
     ))
 
-    # 5. Manejadores de error
+    # 7. Manejadores de error
     registrar_manejadores_error(app)
 
     return app

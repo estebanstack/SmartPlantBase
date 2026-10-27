@@ -1,25 +1,40 @@
 """
 Puertos de Entrada (Driving / Primary Ports).
-Interfaces abstractas que exponen los casos de uso del dominio a los adaptadores de entrada.
+Cada puerto es una cosa que alguien de afuera (el front, un dispositivo, una prueba)
+le puede pedir al dominio. Cada uno lo implementa un caso de uso en matera/dominio/casos_uso/.
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Mapping
-from matera.dominio.modelo import Diagnostico, Especie, EstadoActualPlanta, Planta
+from typing import List, Mapping
+
+from matera.dominio.modelo import (
+    Diagnostico,
+    Especie,
+    EstadoActualPlanta,
+    Planta,
+    RegistroLectura,
+    SesionUsuario,
+)
 
 
 class ValidarLecturaPort(ABC):
-    """R1: Conserva la validación directa de una lectura desde la interfaz contra la tabla de referencia."""
+    """R1: diagnosticar una medición ingresada a mano desde el front."""
+
     @abstractmethod
     def validar(self, especie: str, valores: Mapping[str, float]) -> Diagnostico:
-        pass
+        ...
+
+
+class ConsultarEspeciesPort(ABC):
+    """R1: catálogo de especies soportadas con sus rangos (llena el selector del front)."""
 
     @abstractmethod
     def listar_especies(self) -> List[Especie]:
-        pass
+        ...
 
 
 class RegistrarLecturaPort(ABC):
-    """R2 y R5: Registra una lectura proveniente de un sensor/dispositivo, evalúa su estado y la persiste."""
+    """R2 y R5: un dispositivo reporta una lectura; se evalúa y se guarda en el historial."""
+
     @abstractmethod
     def registrar(
         self,
@@ -27,32 +42,42 @@ class RegistrarLecturaPort(ABC):
         valores: Mapping[str, float],
         marca_tiempo: str = "",
     ) -> Diagnostico:
-        pass
+        ...
 
 
 class ConsultarEstadoPort(ABC):
-    """R5, R6 y R7: Consulta el estado actual y el historial de una planta verificando pertenencia."""
+    """R5 y R6: estado actual (última lectura + diagnóstico) de una planta del usuario."""
+
     @abstractmethod
     def consultar_estado(self, usuario_id: str, planta_id: str) -> EstadoActualPlanta:
-        pass
+        ...
+
+
+class ConsultarHistorialPort(ABC):
+    """R5: lecturas anteriores de una planta del usuario, de la más reciente a la más antigua."""
 
     @abstractmethod
     def consultar_historial(
         self, usuario_id: str, planta_id: str, limite: int = 20
-    ) -> List[Any]:
-        pass
+    ) -> List[RegistroLectura]:
+        ...
+
+
+class ListarPlantasPort(ABC):
+    """R7: plantas que pertenecen al usuario autenticado."""
 
     @abstractmethod
     def listar_plantas_usuario(self, usuario_id: str) -> List[Planta]:
-        pass
+        ...
 
 
 class AutenticarUsuarioPort(ABC):
-    """R7: Casos de uso de registro e inicio de sesión de usuarios y emisión de tokens."""
-    @abstractmethod
-    def registrar_usuario(self, nombre: str, email: str, password: str) -> Dict[str, Any]:
-        pass
+    """R7: registro e inicio de sesión de usuarios."""
 
     @abstractmethod
-    def iniciar_sesion(self, email: str, password: str) -> Dict[str, Any]:
-        pass
+    def registrar_usuario(self, nombre: str, email: str, password: str) -> SesionUsuario:
+        ...
+
+    @abstractmethod
+    def iniciar_sesion(self, email: str, password: str) -> SesionUsuario:
+        ...

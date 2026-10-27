@@ -72,16 +72,16 @@
   <text x="305" y="68" class="badge-in">PUERTOS DE ENTRADA (matera/dominio/puertos/entrada.py)</text>
   <text x="305" y="84" class="card-text">• ValidarLecturaPort (R1: validación catálogo botánico)</text>
   <text x="305" y="97" class="card-text">• RegistrarLecturaPort (R2: telemetría sensor y evaluación)</text>
-  <text x="305" y="110" class="card-text">• ConsultarEstadoPort (R5, R6) · AutenticarUsuarioPort (R7)</text>
+  <text x="305" y="110" class="card-text">• ConsultarEstado/Historial (R5, R6) · Autenticar (R7)</text>
 
   <!-- Sub-block: Dominio Puro -->
   <rect x="295" y="132" width="330" height="152" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2" rx="6px" />
   <text x="305" y="150" class="card-title">Lógica de Negocio Pura (matera/dominio/)</text>
   <text x="305" y="165" class="card-sub">Entidades (modelo.py):</text>
   <text x="315" y="179" class="card-text">Lectura · Especie · Planta · Usuario · Diagnostico</text>
-  <text x="305" y="196" class="card-sub">Servicios y Reglas Botánicas (validador.py):</text>
+  <text x="305" y="196" class="card-sub">Reglas (validador.py) y casos_uso/:</text>
   <text x="315" y="210" class="card-text">• ValidadorDeEstado: evaluación según límites y rangos</text>
-  <text x="315" y="224" class="card-text">• ServicioMateraDominio: orquestador de casos de uso</text>
+  <text x="315" y="224" class="card-text">• Un caso de uso por puerto de entrada</text>
   <text x="315" y="238" class="card-text">• Regla de Propiedad (R7): planta.pertenece_a(usuario_id)</text>
   <text x="305" y="258" class="card-sub" fill="#047857">Invariante: 0 imports de Flask, SQL, CSV, JSON ni PyJWT</text>
   <text x="305" y="272" class="card-text" fill="#64748b">Excepciones de dominio: AccesoNoAutorizado, EspecieNoSoportada...</text>
@@ -91,7 +91,7 @@
   <text x="305" y="308" class="badge-out">PUERTOS DE SALIDA (matera/dominio/puertos/salida.py)</text>
   <text x="305" y="324" class="card-text">• TablaReferenciaPort (R4: consulta rangos óptimos)</text>
   <text x="305" y="338" class="card-text">• HistorialLecturasPort (R5: persistencia y última lectura)</text>
-  <text x="305" y="352" class="card-text">• UsuariosPlantasPort (R7: consulta y relación planta-usuario)</text>
+  <text x="305" y="352" class="card-text">• UsuariosPort · PlantasPort (R7: usuarios y sus plantas)</text>
   <text x="305" y="366" class="card-text">• EmisorTokenPort (R7: abstracción para emisión de tokens)</text>
   <text x="305" y="382" class="card-text" fill="#b45309">El dominio declara qué necesita; la infraestructura lo implementa</text>
 
@@ -113,7 +113,7 @@
   <text x="695" y="180" class="card-title">historial_bd.py (SQLite)</text>
   <text x="695" y="194" class="card-sub">• Implementa:</text>
   <text x="695" y="208" class="card-text">  - HistorialLecturasPort (R5)</text>
-  <text x="695" y="222" class="card-text">  - UsuariosPlantasPort (R7)</text>
+  <text x="695" y="222" class="card-text">  - UsuariosPort y PlantasPort (R7)</text>
   <text x="695" y="238" class="card-text">BdHistorialYPlantasAdapter:</text>
   <text x="695" y="252" class="card-text">Persistencia relacional de lecturas,</text>
   <text x="695" y="266" class="card-text">diagnósticos, usuarios y dispositivos</text>

@@ -22,12 +22,22 @@ from matera.dominio.modelo import (
     Lectura,
     Planta,
 )
-from matera.dominio.validador import ServicioMateraDominio, ValidadorDeEstado
+from matera.dominio.casos_uso import (
+    AutenticarUsuario,
+    ConsultarEspecies,
+    ConsultarEstado,
+    ConsultarHistorial,
+    ListarPlantas,
+    RegistrarLectura,
+    ValidarLectura,
+)
+from matera.dominio.validador import ValidadorDeEstado
 from tests.fakes import (
     FakeEmisorToken,
     FakeHistorialLecturas,
+    FakePlantas,
     FakeTablaReferencia,
-    FakeUsuariosPlantas,
+    FakeUsuarios,
 )
 
 
@@ -42,33 +52,27 @@ def fake_historial():
 
 
 @pytest.fixture
-def fake_usuarios_plantas():
-    repo = FakeUsuariosPlantas()
-    # Pre-cargar usuario dueño y planta asociada a un ESP32
-    planta = Planta(
+def fake_plantas():
+    repo = FakePlantas()
+    # Planta de Ana asociada al ESP32 "esp32-01"
+    repo.guardar_planta(Planta(
         id="planta-01",
         nombre="Sansevieria de Sala",
         especie="sansevieria",
         usuario_id="usr-ana",
         dispositivo_id="esp32-01",
-    )
-    repo.guardar_planta(planta)
+    ))
     return repo
+
+
+@pytest.fixture
+def fake_usuarios():
+    return FakeUsuarios()
 
 
 @pytest.fixture
 def fake_emisor():
     return FakeEmisorToken()
-
-
-@pytest.fixture
-def servicio_dominio(fake_tabla, fake_historial, fake_usuarios_plantas, fake_emisor):
-    return ServicioMateraDominio(
-        tabla_referencia=fake_tabla,
-        historial_lecturas=fake_historial,
-        usuarios_plantas=fake_usuarios_plantas,
-        emisor_token=fake_emisor,
-    )
 
 
 # -----------------------------------------------------------------------------
@@ -169,93 +173,122 @@ def test_valores_en_extremos_son_optimos(fake_tabla):
 
 
 # -----------------------------------------------------------------------------
-# 3. Pruebas de Puertos de Entrada con ServicioMateraDominio
+# 3. Pruebas de los Casos de Uso (puertos de entrada) con dobles de prueba
 # -----------------------------------------------------------------------------
 
-def test_puerto_validar_lectura_y_listar_especies(servicio_dominio):
-    # R1: ValidarLecturaPort
-    diag = servicio_dominio.validar(
+def test_validar_lectura_y_listar_especies(fake_tabla):
+    # R1: ValidarLecturaPort y ConsultarEspeciesPort
+    diag = ValidarLectura(fake_tabla).validar(
         especie="sansevieria",
         valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
     )
     assert diag.estado == EstadoPlanta.SALUDABLE
 
-    especies = servicio_dominio.listar_especies()
+    especies = ConsultarEspecies(fake_tabla).listar_especies()
     assert len(especies) >= 3
 
 
-def test_puerto_validar_especie_inexistente_lanza_error(servicio_dominio):
+def test_validar_especie_inexistente_lanza_error(fake_tabla):
     with pytest.raises(EspecieNoSoportadaError):
-        servicio_dominio.validar(
+        ValidarLectura(fake_tabla).validar(
             especie="especie_desconocida",
             valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
         )
 
 
-def test_puerto_registrar_lectura_dispositivo(servicio_dominio, fake_historial):
+def test_registrar_lectura_dispositivo(fake_tabla, fake_plantas, fake_historial):
     # R2 y R5: RegistrarLecturaPort
-    diag = servicio_dominio.registrar(
+    caso_uso = RegistrarLectura(fake_tabla, fake_plantas, fake_historial)
+    diag = caso_uso.registrar(
         dispositivo_id="esp32-01",
         valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
         marca_tiempo="2026-10-26T16:00:00Z",
     )
     assert diag.estado == EstadoPlanta.SALUDABLE
     assert len(fake_historial.registros) == 1
-    assert fake_historial.registros[0]["planta_id"] == "planta-01"
+    assert fake_historial.registros[0].lectura.planta_id == "planta-01"
 
 
-def test_puerto_registrar_lectura_dispositivo_desconocido_falla(servicio_dominio):
+def test_registrar_lectura_dispositivo_desconocido_falla(fake_tabla, fake_plantas, fake_historial):
+    caso_uso = RegistrarLectura(fake_tabla, fake_plantas, fake_historial)
     with pytest.raises(DispositivoNoEncontradoError):
-        servicio_dominio.registrar(
+        caso_uso.registrar(
             dispositivo_id="esp32-inexistente",
             valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
         )
 
 
-def test_puerto_consultar_estado_regla_propiedad(servicio_dominio):
-    # R7: Dueña legítima (usr-ana) puede consultar su planta
-    estado_ana = servicio_dominio.consultar_estado(
-        usuario_id="usr-ana",
-        planta_id="planta-01",
-    )
+def test_registrar_lectura_invalida_no_se_guarda(fake_tabla, fake_plantas, fake_historial):
+    # Un sensor dañado manda humedad 150 %: se rechaza y no entra al historial
+    caso_uso = RegistrarLectura(fake_tabla, fake_plantas, fake_historial)
+    with pytest.raises(ParametroInvalidoError):
+        caso_uso.registrar(
+            dispositivo_id="esp32-01",
+            valores={"humedad": 150.0, "luz": 500.0, "temperatura": 22.0},
+        )
+    assert fake_historial.registros == []
+
+
+def test_consultar_estado_regla_propiedad(fake_tabla, fake_plantas, fake_historial):
+    # R7: la dueña (usr-ana) ve su planta; otro usuario recibe error de dominio
+    caso_uso = ConsultarEstado(fake_tabla, fake_plantas, fake_historial)
+
+    estado_ana = caso_uso.consultar_estado(usuario_id="usr-ana", planta_id="planta-01")
     assert estado_ana.planta.id == "planta-01"
 
-    # Intruso (usr-carlos) recibe AccesoNoAutorizadoPlantaError en el dominio
     with pytest.raises(AccesoNoAutorizadoPlantaError):
-        servicio_dominio.consultar_estado(
-            usuario_id="usr-carlos",
-            planta_id="planta-01",
-        )
+        caso_uso.consultar_estado(usuario_id="usr-carlos", planta_id="planta-01")
 
 
-def test_puerto_autenticacion_usuario(servicio_dominio):
+def test_consultar_estado_planta_inexistente(fake_tabla, fake_plantas, fake_historial):
+    caso_uso = ConsultarEstado(fake_tabla, fake_plantas, fake_historial)
+    with pytest.raises(PlantaNoEncontradaError):
+        caso_uso.consultar_estado(usuario_id="usr-ana", planta_id="planta-99")
+
+
+def test_consultar_historial_devuelve_registros_y_aplica_propiedad(
+    fake_tabla, fake_plantas, fake_historial
+):
+    registrar = RegistrarLectura(fake_tabla, fake_plantas, fake_historial)
+    registrar.registrar("esp32-01", {"humedad": 30.0, "luz": 500.0, "temperatura": 22.0})
+    registrar.registrar("esp32-01", {"humedad": 10.0, "luz": 500.0, "temperatura": 22.0})
+
+    caso_uso = ConsultarHistorial(fake_plantas, fake_historial)
+    historial = caso_uso.consultar_historial(usuario_id="usr-ana", planta_id="planta-01")
+
+    # Más reciente primero, y cada registro trae el estado que se le calculó
+    assert [r.estado for r in historial] == [EstadoPlanta.EN_RIESGO, EstadoPlanta.SALUDABLE]
+
+    with pytest.raises(AccesoNoAutorizadoPlantaError):
+        caso_uso.consultar_historial(usuario_id="usr-carlos", planta_id="planta-01")
+
+
+def test_listar_plantas_solo_del_usuario(fake_plantas):
+    caso_uso = ListarPlantas(fake_plantas)
+    assert [p.id for p in caso_uso.listar_plantas_usuario("usr-ana")] == ["planta-01"]
+    assert caso_uso.listar_plantas_usuario("usr-carlos") == []
+
+
+def test_autenticacion_usuario(fake_usuarios, fake_emisor):
     # R7: AutenticarUsuarioPort
-    reg = servicio_dominio.registrar_usuario(
+    caso_uso = AutenticarUsuario(fake_usuarios, fake_emisor)
+
+    sesion = caso_uso.registrar_usuario(
         nombre="Ana María",
         email="ana@matera.edu.co",
         password="claveSegura123",
     )
-    assert reg["email"] == "ana@matera.edu.co"
-    assert "token" in reg
+    assert sesion.usuario.email == "ana@matera.edu.co"
+    assert sesion.token
 
-    # Intento de registro duplicado
+    # Registro duplicado
     with pytest.raises(UsuarioYaExisteError):
-        servicio_dominio.registrar_usuario(
-            nombre="Ana María 2",
-            email="ana@matera.edu.co",
-            password="otraClave",
-        )
+        caso_uso.registrar_usuario(nombre="Ana 2", email="ana@matera.edu.co", password="otraClave")
 
-    # Login exitoso
-    login_ok = servicio_dominio.iniciar_sesion(
-        email="ana@matera.edu.co",
-        password="claveSegura123",
-    )
-    assert login_ok["usuario_id"] == reg["usuario_id"]
+    # Login correcto
+    login = caso_uso.iniciar_sesion(email="ana@matera.edu.co", password="claveSegura123")
+    assert login.usuario.id == sesion.usuario.id
 
-    # Login con contraseña errónea
+    # Contraseña equivocada
     with pytest.raises(CredencialesInvalidasError):
-        servicio_dominio.iniciar_sesion(
-            email="ana@matera.edu.co",
-            password="claveIncorrecta",
-        )
+        caso_uso.iniciar_sesion(email="ana@matera.edu.co", password="claveIncorrecta")

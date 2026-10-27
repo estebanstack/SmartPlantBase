@@ -1,7 +1,7 @@
 """
 Pruebas de integración de Adaptadores de Salida (R4 y R5).
 Verifica la intercambiabilidad de TablaReferenciaPort (CSV vs SQLite)
-y la persistencia del HistorialLecturasPort y UsuariosPlantasPort en SQLite.
+y la persistencia de HistorialLecturasPort, UsuariosPort y PlantasPort en SQLite.
 """
 from pathlib import Path
 import tempfile
@@ -106,10 +106,10 @@ def test_historial_lecturas_sqlite(temp_db):
     # Obtener historial (orden descendente)
     historial = adaptador.obtener_historial("planta-01", limite=10)
     assert len(historial) == 2
-    assert historial[0]["marca_tiempo"] == "2026-10-26T12:05:00Z"
-    assert historial[0]["estado_planta"] == "EN_RIESGO"
-    assert historial[1]["marca_tiempo"] == "2026-10-26T12:00:00Z"
-    assert historial[1]["estado_planta"] == "SALUDABLE"
+    assert historial[0].lectura.marca_tiempo == "2026-10-26T12:05:00Z"
+    assert historial[0].estado == EstadoPlanta.EN_RIESGO
+    assert historial[1].lectura.marca_tiempo == "2026-10-26T12:00:00Z"
+    assert historial[1].estado == EstadoPlanta.SALUDABLE
 
 
 def test_usuarios_plantas_sqlite(temp_db):
@@ -119,7 +119,7 @@ def test_usuarios_plantas_sqlite(temp_db):
     adaptador = BdUsuariosPlantasAdapter(temp_db)
 
     # Usuario semilla Ana María
-    ana = adaptador.obtener_usuario_by_email if hasattr(adaptador, "obtener_usuario_by_email") else adaptador.obtener_usuario_por_email("ana@matera.edu.co")
+    ana = adaptador.obtener_usuario_por_email("ana@matera.edu.co")
     assert ana is not None
     assert ana.id == "usr-ana"
     assert ana.nombre == "Ana María"

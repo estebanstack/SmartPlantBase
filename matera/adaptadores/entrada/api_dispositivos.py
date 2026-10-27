@@ -6,6 +6,7 @@ Se conecta exclusivamente al puerto de entrada RegistrarLecturaPort sin tocar el
 from typing import Any, Dict, Optional
 from flask import Blueprint, jsonify, request
 
+from matera.adaptadores.entrada.serializacion import diagnostico_a_json
 from matera.adaptadores.entrada.seguridad_jwt import requiere_jwt_dispositivo
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.dominio.excepciones import ParametroInvalidoError
@@ -70,21 +71,7 @@ def crear_api_dispositivos_blueprint(
             "mensaje": "Lectura registrada correctamente.",
             "dispositivo_id": id,
             "estado": diagnostico.estado.value,
-            "diagnostico": {
-                "especie": diagnostico.especie,
-                "estado": diagnostico.estado.value,
-                "parametros": [
-                    {
-                        "nombre": p.nombre,
-                        "valor": p.valor,
-                        "unidad": p.unidad,
-                        "rango_optimo": [p.rango_optimo[0], p.rango_optimo[1]],
-                        "estado": p.estado.value,
-                    }
-                    for p in diagnostico.parametros
-                ],
-                "recomendaciones": diagnostico.recomendaciones,
-            },
+            "diagnostico": diagnostico_a_json(diagnostico),
         }), 201
 
     return api_bp

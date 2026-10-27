@@ -1,6 +1,7 @@
 """
 Adaptador de Entrada: Controlador REST para la Interfaz Web, Auth y Consulta de Plantas (R1, R5, R6, R7).
-Implementa los endpoints HTTP que conectan a los puertos de entrada ValidarLecturaPort, ConsultarEstadoPort y AutenticarUsuarioPort.
+Traduce HTTP a llamadas a los puertos de entrada y los objetos del dominio a JSON.
+Cada endpoint recibe solo el puerto que necesita.
 """
 from typing import Any, Dict, Optional
 from flask import Blueprint, jsonify, request
@@ -9,17 +10,31 @@ from matera.adaptadores.entrada.seguridad_jwt import requiere_jwt_usuario
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.dominio.excepciones import ParametroInvalidoError
 from matera.dominio.modelo import PARAMETROS_SOPORTADOS
+from matera.adaptadores.entrada.serializacion import (
+    diagnostico_a_json,
+    especie_a_json,
+    estado_actual_a_json,
+    planta_a_json,
+    registro_a_json,
+    sesion_a_json,
+)
 from matera.dominio.puertos.entrada import (
     AutenticarUsuarioPort,
+    ConsultarEspeciesPort,
     ConsultarEstadoPort,
+    ConsultarHistorialPort,
+    ListarPlantasPort,
     ValidarLecturaPort,
 )
 
 
 def crear_api_front_blueprint(
-    puerto_validacion: ValidarLecturaPort,
-    puerto_consultas: Optional[ConsultarEstadoPort] = None,
-    puerto_auth: Optional[AutenticarUsuarioPort] = None,
+    validar_lectura: ValidarLecturaPort,
+    consultar_especies: ConsultarEspeciesPort,
+    consultar_estado: ConsultarEstadoPort,
+    consultar_historial: ConsultarHistorialPort,
+    listar_plantas: ListarPlantasPort,
+    autenticar: AutenticarUsuarioPort,
     emisor_jwt: Optional[JwtEmisorTokenAdapter] = None,
 ) -> Blueprint:
     """
@@ -59,49 +74,19 @@ def crear_api_front_blueprint(
                 raise ParametroInvalidoError(campo, f"El parámetro '{campo}' es obligatorio.")
             valores[campo] = _parse_float(campo, datos[campo])
 
-        diagnostico = puerto_validacion.validar(
+        diagnostico = validar_lectura.validar(
             especie=especie_raw.strip().lower(),
             valores=valores,
         )
-
-        respuesta = {
-            "especie": diagnostico.especie,
-            "estado": diagnostico.estado.value,
-            "parametros": [
-                {
-                    "nombre": p.nombre,
-                    "valor": p.valor,
-                    "unidad": p.unidad,
-                    "rango_optimo": [p.rango_optimo[0], p.rango_optimo[1]],
-                    "estado": p.estado.value,
-                }
-                for p in diagnostico.parametros
-            ],
-            "recomendaciones": diagnostico.recomendaciones,
-        }
-        return jsonify(respuesta), 200
+        return jsonify(diagnostico_a_json(diagnostico)), 200
 
     @api_bp.route("/v1/especies", methods=["GET"])
     def listar_especies_v1():
         """
         GET /api/v1/especies (R1).
         """
-        especies = puerto_validacion.listar_especies()
-        respuesta = [
-            {
-                "nombre": esp.nombre,
-                "rangos": {
-                    nombre: {
-                        "min": rango.minimo,
-                        "max": rango.maximo,
-                        "unidad": rango.unidad,
-                    }
-                    for nombre, rango in esp.rangos.items()
-                },
-            }
-            for esp in especies
-        ]
-        return jsonify(respuesta), 200
+        especies = consultar_especies.listar_especies()
+        return jsonify([especie_a_json(e) for e in especies]), 200
 
     # -------------------------------------------------------------------------
     # R7: Endpoints de Autenticación (/api/auth/...)
@@ -111,9 +96,6 @@ def crear_api_front_blueprint(
         """
         POST /api/auth/registro (R7).
         """
-        if not puerto_auth:
-            return jsonify({"error": "SERVICIO_NO_DISPONIBLE", "mensaje": "Autenticación no disponible."}), 503
-
         if not request.is_json:
             raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON.")
 
@@ -129,25 +111,14 @@ def crear_api_front_blueprint(
         if not password or len(password) < 6:
             raise ParametroInvalidoError("password", "La contraseña debe tener al menos 6 caracteres.")
 
-        resultado = puerto_auth.registrar_usuario(nombre=nombre, email=email, password=password)
-        return jsonify({
-            "mensaje": "Usuario registrado exitosamente.",
-            "token": resultado["token"],
-            "usuario": {
-                "id": resultado["usuario_id"],
-                "nombre": resultado["nombre"],
-                "email": resultado["email"],
-            },
-        }), 201
+        sesion = autenticar.registrar_usuario(nombre=nombre, email=email, password=password)
+        return jsonify({"mensaje": "Usuario registrado exitosamente.", **sesion_a_json(sesion)}), 201
 
     @api_bp.route("/auth/login", methods=["POST"])
     def iniciar_sesion():
         """
         POST /api/auth/login (R7).
         """
-        if not puerto_auth:
-            return jsonify({"error": "SERVICIO_NO_DISPONIBLE", "mensaje": "Autenticación no disponible."}), 503
-
         if not request.is_json:
             raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON.")
 
@@ -160,16 +131,8 @@ def crear_api_front_blueprint(
         if not password:
             raise ParametroInvalidoError("password", "La contraseña es obligatoria.")
 
-        resultado = puerto_auth.iniciar_sesion(email=email, password=password)
-        return jsonify({
-            "mensaje": "Sesión iniciada correctamente.",
-            "token": resultado["token"],
-            "usuario": {
-                "id": resultado["usuario_id"],
-                "nombre": resultado["nombre"],
-                "email": resultado["email"],
-            },
-        }), 200
+        sesion = autenticar.iniciar_sesion(email=email, password=password)
+        return jsonify({"mensaje": "Sesión iniciada correctamente.", **sesion_a_json(sesion)}), 200
 
     # -------------------------------------------------------------------------
     # R5, R6, R7: Endpoints de Consulta de Plantas e Historial (/api/plantas/...)
@@ -181,25 +144,13 @@ def crear_api_front_blueprint(
 
     @api_bp.route("/plantas", methods=["GET"])
     @_verificador_usuario
-    def listar_plantas(usuario_id: str):
+    def obtener_plantas_usuario(usuario_id: str):
         """
         GET /api/plantas (R7).
         Lista las plantas registradas que pertenecen al usuario autenticado.
         """
-        if not puerto_consultas:
-            return jsonify([]), 200
-
-        plantas = puerto_consultas.listar_plantas_usuario(usuario_id)
-        return jsonify([
-            {
-                "id": p.id,
-                "nombre": p.nombre,
-                "especie": p.especie,
-                "usuario_id": p.usuario_id,
-                "dispositivo_id": p.dispositivo_id,
-            }
-            for p in plantas
-        ]), 200
+        plantas = listar_plantas.listar_plantas_usuario(usuario_id)
+        return jsonify([planta_a_json(p) for p in plantas]), 200
 
     @api_bp.route("/plantas/<planta_id>/estado", methods=["GET"])
     @_verificador_usuario
@@ -209,52 +160,8 @@ def crear_api_front_blueprint(
         Retorna el estado agregado y última lectura de la planta.
         El dominio verifica la propiedad y rechaza con 403 si pertenece a otro usuario.
         """
-        if not puerto_consultas:
-            return jsonify({"error": "SERVICIO_NO_DISPONIBLE"}), 503
-
-        estado_agregado = puerto_consultas.consultar_estado(usuario_id=usuario_id, planta_id=planta_id)
-
-        diagnostico_json = None
-        if estado_agregado.diagnostico:
-            diag = estado_agregado.diagnostico
-            diagnostico_json = {
-                "especie": diag.especie,
-                "estado": diag.estado.value,
-                "parametros": [
-                    {
-                        "nombre": p.nombre,
-                        "valor": p.valor,
-                        "unidad": p.unidad,
-                        "rango_optimo": [p.rango_optimo[0], p.rango_optimo[1]],
-                        "estado": p.estado.value,
-                    }
-                    for p in diag.parametros
-                ],
-                "recomendaciones": diag.recomendaciones,
-            }
-
-        ultima_lectura_json = None
-        if estado_agregado.ultima_lectura:
-            lec = estado_agregado.ultima_lectura
-            ultima_lectura_json = {
-                "especie": lec.especie,
-                "valores": dict(lec.valores),
-                "marca_tiempo": lec.marca_tiempo,
-                "dispositivo_id": lec.dispositivo_id,
-                "planta_id": lec.planta_id,
-            }
-
-        return jsonify({
-            "planta": {
-                "id": estado_agregado.planta.id,
-                "nombre": estado_agregado.planta.nombre,
-                "especie": estado_agregado.planta.especie,
-                "usuario_id": estado_agregado.planta.usuario_id,
-                "dispositivo_id": estado_agregado.planta.dispositivo_id,
-            },
-            "ultima_lectura": ultima_lectura_json,
-            "diagnostico": diagnostico_json,
-        }), 200
+        estado = consultar_estado.consultar_estado(usuario_id=usuario_id, planta_id=planta_id)
+        return jsonify(estado_actual_a_json(estado)), 200
 
     @api_bp.route("/plantas/<planta_id>/historial", methods=["GET"])
     @_verificador_usuario
@@ -263,15 +170,12 @@ def crear_api_front_blueprint(
         GET /api/plantas/{id}/historial (R5, R6, R7).
         Retorna la lista de lecturas históricas de la planta.
         """
-        if not puerto_consultas:
-            return jsonify([]), 200
-
         limite = request.args.get("limite", default=20, type=int)
-        historial = puerto_consultas.consultar_historial(
+        historial = consultar_historial.consultar_historial(
             usuario_id=usuario_id,
             planta_id=planta_id,
             limite=limite,
         )
-        return jsonify(historial), 200
+        return jsonify([registro_a_json(r) for r in historial]), 200
 
     return api_bp

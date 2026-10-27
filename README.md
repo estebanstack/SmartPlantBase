@@ -9,8 +9,8 @@
 
 SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn, 2005)**:
 - **Núcleo de Dominio (`matera/dominio/`):** Entidades (`Lectura`, `Especie`, `Planta`, `Usuario`, `Diagnostico`), reglas botánicas (`ValidadorDeEstado`) y excepciones puras. **0 dependencias de frameworks, HTTP, bases de datos o librerías de seguridad.**
-- **Puertos de Entrada (`matera/dominio/puertos/entrada.py`):** Casos de uso definidos mediante interfaces abstractas (`ValidarLecturaPort`, `RegistrarLecturaPort`, `ConsultarEstadoPort`, `AutenticarUsuarioPort`).
-- **Puertos de Salida (`matera/dominio/puertos/salida.py`):** Contratos abstractos requeridos por el dominio (`TablaReferenciaPort`, `HistorialLecturasPort`, `UsuariosPlantasPort`, `EmisorTokenPort`).
+- **Puertos de Entrada (`matera/dominio/puertos/entrada.py`):** Casos de uso definidos mediante interfaces abstractas (`ValidarLecturaPort`, `ConsultarEspeciesPort`, `RegistrarLecturaPort`, `ConsultarEstadoPort`, `ConsultarHistorialPort`, `ListarPlantasPort`, `AutenticarUsuarioPort`). Cada uno lo implementa un caso de uso en `matera/dominio/casos_uso/`.
+- **Puertos de Salida (`matera/dominio/puertos/salida.py`):** Contratos abstractos requeridos por el dominio (`TablaReferenciaPort`, `HistorialLecturasPort`, `UsuariosPort`, `PlantasPort`, `EmisorTokenPort`).
 - **Adaptadores de Entrada (`matera/adaptadores/entrada/`):**
   - `api_front.py`: Controlador REST para clientes web y autenticación.
   - `api_dispositivos.py`: Controlador REST para sensores IoT (`POST /api/dispositivos/{id}/lecturas`).
@@ -103,7 +103,8 @@ SmartPlantBase/
 ├── matera/
 │   ├── dominio/
 │   │   ├── modelo.py                 # Entidades puras: Lectura, Especie, Planta, Usuario
-│   │   ├── validador.py              # ValidadorDeEstado y ServicioMateraDominio
+│   │   ├── validador.py              # ValidadorDeEstado (regla de clasificación y estado global)
+│   │   ├── casos_uso/                # Un caso de uso por puerto de entrada
 │   │   ├── excepciones.py            # Excepciones de negocio (0 dependencias)
 │   │   └── puertos/                  # Los puertos los define el dominio
 │   │       ├── entrada.py            # ValidarLecturaPort, RegistrarLecturaPort, etc.

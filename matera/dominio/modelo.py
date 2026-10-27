@@ -179,3 +179,17 @@ class EstadoActualPlanta:
     planta: Planta
     ultima_lectura: Optional[Lectura]
     diagnostico: Optional[Diagnostico]
+
+
+@dataclass(frozen=True)
+class RegistroLectura:
+    """Una lectura guardada en el historial junto con el estado que se calculó para ella."""
+    lectura: Lectura
+    estado: EstadoPlanta
+
+
+@dataclass(frozen=True)
+class SesionUsuario:
+    """Resultado de registrarse o iniciar sesión: el usuario y el token que se le emitió."""
+    usuario: Usuario
+    token: str

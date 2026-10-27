@@ -1,14 +1,14 @@
 """
 Adaptadores de Salida: Historial de Lecturas y Gestión de Usuarios/Plantas en SQLite (R5, R7).
-Implementa HistorialLecturasPort y UsuariosPlantasPort para la persistencia relacional en SQLite.
+Implementa HistorialLecturasPort, UsuariosPort y PlantasPort para la persistencia relacional en SQLite.
 """
 from pathlib import Path
 import sqlite3
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from matera.adaptadores.salida.tabla_bd import inicializar_bd
-from matera.dominio.modelo import Diagnostico, Lectura, Planta, Usuario
-from matera.dominio.puertos.salida import HistorialLecturasPort, UsuariosPlantasPort
+from matera.dominio.modelo import Diagnostico, EstadoPlanta, Lectura, Planta, RegistroLectura, Usuario
+from matera.dominio.puertos.salida import HistorialLecturasPort, PlantasPort, UsuariosPort
 
 
 class BdHistorialLecturasAdapter(HistorialLecturasPort):
@@ -69,38 +69,39 @@ class BdHistorialLecturasAdapter(HistorialLecturasPort):
                 planta_id=fila["planta_id"] or None,
             )
 
-    def obtener_historial(self, planta_id: str, limite: int = 20) -> List[Dict[str, Any]]:
+    def obtener_historial(self, planta_id: str, limite: int = 20) -> List[RegistroLectura]:
         with self._conectar() as con:
             cur = con.cursor()
             cur.execute("""
-                SELECT id, planta_id, dispositivo_id, especie, humedad, luz, temperatura, estado_planta, marca_tiempo
+                SELECT planta_id, dispositivo_id, especie, humedad, luz, temperatura, estado_planta, marca_tiempo
                 FROM historial_lecturas
                 WHERE planta_id = ?
                 ORDER BY id DESC
                 LIMIT ?
             """, (planta_id, limite))
-            filas = cur.fetchall()
             return [
-                {
-                    "id": fila["id"],
-                    "planta_id": fila["planta_id"],
-                    "dispositivo_id": fila["dispositivo_id"],
-                    "especie": fila["especie"],
-                    "valores": {
-                        "humedad": float(fila["humedad"]),
-                        "luz": float(fila["luz"]),
-                        "temperatura": float(fila["temperatura"]),
-                    },
-                    "estado_planta": fila["estado_planta"],
-                    "marca_tiempo": fila["marca_tiempo"],
-                }
-                for fila in filas
+                RegistroLectura(
+                    lectura=Lectura(
+                        especie=fila["especie"],
+                        valores={
+                            "humedad": float(fila["humedad"]),
+                            "luz": float(fila["luz"]),
+                            "temperatura": float(fila["temperatura"]),
+                        },
+                        marca_tiempo=fila["marca_tiempo"],
+                        dispositivo_id=fila["dispositivo_id"] or None,
+                        planta_id=fila["planta_id"] or None,
+                    ),
+                    estado=EstadoPlanta(fila["estado_planta"]),
+                )
+                for fila in cur.fetchall()
             ]
 
 
-class BdUsuariosPlantasAdapter(UsuariosPlantasPort):
+class BdUsuariosPlantasAdapter(UsuariosPort, PlantasPort):
     """
-    Adaptador de salida para gestionar usuarios y plantas en SQLite.
+    Adaptador de salida que implementa UsuariosPort y PlantasPort en SQLite.
+    Una sola clase puede implementar varios puertos; el dominio sigue viendo puertos separados.
     """
 
     def __init__(self, ruta_bd: str | Path):
@@ -129,24 +130,6 @@ class BdUsuariosPlantasAdapter(UsuariosPlantasPort):
                 FROM usuarios
                 WHERE lower(email) = lower(?)
             """, (email.strip(),))
-            fila = cur.fetchone()
-            if not fila:
-                return None
-            return Usuario(
-                id=fila["id"],
-                nombre=fila["nombre"],
-                email=fila["email"],
-                password_hash=fila["password_hash"],
-            )
-
-    def obtener_usuario_por_id(self, usuario_id: str) -> Optional[Usuario]:
-        with self._conectar() as con:
-            cur = con.cursor()
-            cur.execute("""
-                SELECT id, nombre, email, password_hash
-                FROM usuarios
-                WHERE id = ?
-            """, (usuario_id,))
             fila = cur.fetchone()
             if not fila:
                 return None
@@ -228,7 +211,7 @@ class BdUsuariosPlantasAdapter(UsuariosPlantasPort):
 
 class BdHistorialYPlantasAdapter(BdHistorialLecturasAdapter, BdUsuariosPlantasAdapter):
     """
-    Adaptador compuesto que satisface tanto HistorialLecturasPort como UsuariosPlantasPort
+    Adaptador compuesto que satisface HistorialLecturasPort, UsuariosPort y PlantasPort
     sobre la misma conexión/archivo de base de datos SQLite.
     """
     pass
