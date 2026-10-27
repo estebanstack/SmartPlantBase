@@ -34,6 +34,7 @@ from matera.dominio.casos_uso import (
 from matera.dominio.validador import ValidadorDeEstado
 from tests.fakes import (
     FakeEmisorToken,
+    FakeHasher,
     FakeHistorialLecturas,
     FakePlantas,
     FakeTablaReferencia,
@@ -73,6 +74,11 @@ def fake_usuarios():
 @pytest.fixture
 def fake_emisor():
     return FakeEmisorToken()
+
+
+@pytest.fixture
+def fake_hasher():
+    return FakeHasher()
 
 
 # -----------------------------------------------------------------------------
@@ -269,9 +275,9 @@ def test_listar_plantas_solo_del_usuario(fake_plantas):
     assert caso_uso.listar_plantas_usuario("usr-carlos") == []
 
 
-def test_autenticacion_usuario(fake_usuarios, fake_emisor):
+def test_autenticacion_usuario(fake_usuarios, fake_hasher, fake_emisor):
     # R7: AutenticarUsuarioPort
-    caso_uso = AutenticarUsuario(fake_usuarios, fake_emisor)
+    caso_uso = AutenticarUsuario(fake_usuarios, fake_hasher, fake_emisor)
 
     sesion = caso_uso.registrar_usuario(
         nombre="Ana María",
@@ -292,3 +298,14 @@ def test_autenticacion_usuario(fake_usuarios, fake_emisor):
     # Contraseña equivocada
     with pytest.raises(CredencialesInvalidasError):
         caso_uso.iniciar_sesion(email="ana@matera.edu.co", password="claveIncorrecta")
+
+
+def test_registro_no_guarda_la_contrasena_en_texto_plano(fake_usuarios, fake_hasher, fake_emisor):
+    # El dominio guarda lo que devuelve el hasher, nunca la contraseña original
+    caso_uso = AutenticarUsuario(fake_usuarios, fake_hasher, fake_emisor)
+    sesion = caso_uso.registrar_usuario(nombre="Leo", email="leo@matera.edu.co", password="secreta1")
+
+    guardado = fake_usuarios.obtener_usuario_por_email("leo@matera.edu.co")
+    assert guardado.password_hash != "secreta1"
+    assert guardado.password_hash == fake_hasher.generar_hash("secreta1")
+    assert sesion.usuario.id == guardado.id

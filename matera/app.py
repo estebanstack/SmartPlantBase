@@ -13,6 +13,7 @@ from werkzeug.exceptions import HTTPException
 from matera.adaptadores.entrada.api_dispositivos import crear_api_dispositivos_blueprint
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
+from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
 from matera.adaptadores.salida.historial_bd import BdHistorialYPlantasAdapter
 from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
@@ -167,6 +168,9 @@ def create_app(
     clave_jwt = os.getenv("JWT_SECRET", "matera-secret-key-arquitectura-2026-segura")
     emisor_token = JwtEmisorTokenAdapter(secret_key=clave_jwt)
 
+    # 4b. Adaptador de hash de contraseñas (R7)
+    hasher = WerkzeugHasherAdapter()
+
     # 5. Casos de uso del dominio: cada uno recibe solo los puertos de salida que necesita
     validar_lectura = ValidarLectura(tabla_referencia)
     consultar_especies = ConsultarEspecies(tabla_referencia)
@@ -174,7 +178,7 @@ def create_app(
     consultar_estado = ConsultarEstado(tabla_referencia, plantas, historial)
     consultar_historial = ConsultarHistorial(plantas, historial)
     listar_plantas = ListarPlantas(plantas)
-    autenticar = AutenticarUsuario(usuarios, emisor_token)
+    autenticar = AutenticarUsuario(usuarios, hasher, emisor_token)
 
     # 6. Adaptadores de entrada (Blueprints): cada endpoint recibe solo su puerto de entrada
     app.register_blueprint(crear_api_front_blueprint(

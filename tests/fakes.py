@@ -15,6 +15,7 @@ from matera.dominio.modelo import (
 )
 from matera.dominio.puertos.salida import (
     EmisorTokenPort,
+    HasherContrasenaPort,
     HistorialLecturasPort,
     PlantasPort,
     TablaReferenciaPort,
@@ -122,3 +123,13 @@ class FakeEmisorToken(EmisorTokenPort):
 
     def emitir_token_dispositivo(self, dispositivo_id: str, planta_id: str) -> str:
         return f"fake-jwt-disp-{dispositivo_id}"
+
+
+class FakeHasher(HasherContrasenaPort):
+    """Doble de HasherContrasenaPort: un "hash" visible para poder revisarlo en las pruebas."""
+
+    def generar_hash(self, password: str) -> str:
+        return f"hash::{password[::-1]}"
+
+    def verificar(self, password: str, password_hash: str) -> bool:
+        return password_hash == self.generar_hash(password)

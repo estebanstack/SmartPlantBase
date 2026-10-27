@@ -5,6 +5,8 @@ Intercambiable con CsvTablaReferenciaAdapter mediante configuración sin tocar e
 """
 from pathlib import Path
 import sqlite3
+
+from werkzeug.security import generate_password_hash
 from typing import Dict, List, Optional
 
 from matera.dominio.modelo import (
@@ -82,8 +84,7 @@ def inicializar_bd(ruta_bd: str | Path) -> None:
         """, especies_semilla)
 
         # Semilla de usuarios y plantas de demostración (clave: clave123)
-        import hashlib
-        pwd_hash = hashlib.sha256(b"clave123").hexdigest()
+        pwd_hash = generate_password_hash("clave123")
         usuarios_semilla = [
             ("usr-ana", "Ana María", "ana@matera.edu.co", pwd_hash),
             ("usr-carlos", "Carlos Ruiz", "carlos@matera.edu.co", pwd_hash),

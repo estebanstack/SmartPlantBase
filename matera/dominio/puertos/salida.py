@@ -89,3 +89,18 @@ class EmisorTokenPort(ABC):
     @abstractmethod
     def emitir_token_dispositivo(self, dispositivo_id: str, planta_id: str) -> str:
         ...
+
+
+class HasherContrasenaPort(ABC):
+    """
+    R7: proteger contraseñas. El dominio pide "guárdame esta contraseña de forma segura"
+    y "¿esta contraseña coincide?", sin saber qué algoritmo se usa por debajo.
+    """
+
+    @abstractmethod
+    def generar_hash(self, password: str) -> str:
+        ...
+
+    @abstractmethod
+    def verificar(self, password: str, password_hash: str) -> bool:
+        ...

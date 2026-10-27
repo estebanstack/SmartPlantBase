@@ -156,3 +156,17 @@ def test_create_app_switch_csv_vs_bd(temp_db, ruta_csv):
     resp_bd = client_bd.get("/api/v1/especies")
     assert resp_bd.status_code == 200
     assert len(resp_bd.get_json()) == 5
+
+
+def test_hasher_werkzeug_usa_sal_y_verifica():
+    """R7: el adaptador real de contraseñas genera hashes distintos para la misma clave y los verifica."""
+    from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
+
+    hasher = WerkzeugHasherAdapter()
+    hash_1 = hasher.generar_hash("clave123")
+    hash_2 = hasher.generar_hash("clave123")
+
+    assert hash_1 != "clave123"
+    assert hash_1 != hash_2  # sal aleatoria
+    assert hasher.verificar("clave123", hash_1)
+    assert not hasher.verificar("otra", hash_1)
