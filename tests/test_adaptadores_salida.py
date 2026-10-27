@@ -7,10 +7,10 @@ from pathlib import Path
 import tempfile
 import pytest
 
-from matera.adaptadores.salida.historial_bd import (
-    BdHistorialLecturasAdapter,
-    BdUsuariosPlantasAdapter,
-)
+from matera.adaptadores.salida.historial_bd import BdHistorialLecturasAdapter
+from matera.adaptadores.salida.plantas_bd import BdPlantasAdapter
+from matera.adaptadores.salida.sqlite_bd import conectar, inicializar_bd
+from matera.adaptadores.salida.usuarios_bd import BdUsuariosAdapter
 from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
 from matera.app import create_app
@@ -19,9 +19,10 @@ from matera.dominio.modelo import Diagnostico, EstadoPlanta, Lectura
 
 @pytest.fixture
 def temp_db():
-    """Crea una base de datos SQLite temporal en archivo para pruebas."""
+    """Base SQLite temporal, creada con los scripts de data/bd/ y los datos de demostración."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         ruta = f.name
+    inicializar_bd(ruta, datos_demo=True)
     yield ruta
     Path(ruta).unlink(missing_ok=True)
 
@@ -112,33 +113,52 @@ def test_historial_lecturas_sqlite(temp_db):
     assert historial[1].estado == EstadoPlanta.SALUDABLE
 
 
-def test_usuarios_plantas_sqlite(temp_db):
-    """
-    R7: Semilla y consultas de usuarios y plantas en SQLite.
-    """
-    adaptador = BdUsuariosPlantasAdapter(temp_db)
+def test_usuarios_y_plantas_sqlite(temp_db):
+    """R7: los datos de demostración y las consultas de usuarios y plantas en SQLite."""
+    usuarios = BdUsuariosAdapter(temp_db)
+    plantas = BdPlantasAdapter(temp_db)
 
-    # Usuario semilla Ana María
-    ana = adaptador.obtener_usuario_por_email("ana@matera.edu.co")
+    ana = usuarios.obtener_usuario_por_email("ANA@matera.edu.co")
     assert ana is not None
     assert ana.id == "usr-ana"
     assert ana.nombre == "Ana María"
 
-    # Planta semilla de Ana
-    planta = adaptador.obtener_planta_por_id("planta-01")
+    planta = plantas.obtener_planta_por_id("planta-01")
     assert planta is not None
     assert planta.usuario_id == "usr-ana"
     assert planta.dispositivo_id == "esp32-01"
 
-    # Buscar planta por dispositivo
-    planta_disp = adaptador.obtener_planta_por_dispositivo("esp32-01")
-    assert planta_disp is not None
-    assert planta_disp.id == "planta-01"
+    assert plantas.obtener_planta_por_dispositivo("esp32-01").id == "planta-01"
+    assert [p.id for p in plantas.listar_plantas_por_usuario("usr-ana")] == ["planta-01"]
 
-    # Listar plantas de Ana
-    plantas_ana = adaptador.listar_plantas_por_usuario("usr-ana")
-    assert len(plantas_ana) >= 1
-    assert any(p.id == "planta-01" for p in plantas_ana)
+
+def test_historial_guarda_los_valores_como_json(temp_db):
+    """Los valores van en una columna JSON: la tabla no tiene una columna por parámetro."""
+    adaptador = BdHistorialLecturasAdapter(temp_db)
+    lectura = Lectura(
+        especie="sansevieria",
+        valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
+        planta_id="planta-01",
+    )
+    adaptador.guardar_lectura(lectura, Diagnostico("sansevieria", EstadoPlanta.SALUDABLE, [], []))
+
+    with conectar(temp_db) as con:
+        columnas = {fila["name"] for fila in con.execute("PRAGMA table_info(historial_lecturas)")}
+    assert "valores" in columnas
+    assert not {"humedad", "luz", "temperatura"} & columnas
+    assert dict(adaptador.obtener_ultima_lectura("planta-01").valores) == dict(lectura.valores)
+
+
+def test_sin_datos_demo_no_hay_usuarios_pero_si_especies():
+    """Los usuarios de prueba solo existen si se piden; las especies siempre se cargan."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        ruta = f.name
+    try:
+        inicializar_bd(ruta, datos_demo=False)
+        assert BdUsuariosAdapter(ruta).obtener_usuario_por_email("ana@matera.edu.co") is None
+        assert len(BdTablaReferenciaAdapter(ruta).obtener_todas()) == 5
+    finally:
+        Path(ruta).unlink(missing_ok=True)
 
 
 def test_create_app_switch_csv_vs_bd(temp_db, ruta_csv):

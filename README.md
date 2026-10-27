@@ -19,7 +19,9 @@ SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn,
 - **Adaptadores de Salida (`matera/adaptadores/salida/`):**
   - `tabla_csv.py`: Lector de referencia botánica desde CSV (`CsvTablaReferenciaAdapter`).
   - `tabla_bd.py`: Lector de referencia botánica desde SQLite (`BdTablaReferenciaAdapter`).
-  - `historial_bd.py`: Persistencia de lecturas, usuarios y plantas en SQLite (`BdHistorialYPlantasAdapter`).
+  - `historial_bd.py`, `usuarios_bd.py`, `plantas_bd.py`: un adaptador SQLite por puerto (`HistorialLecturasPort`, `UsuariosPort`, `PlantasPort`).
+  - `sqlite_bd.py`: conexión compartida y creación de la base con los scripts de `data/bd/`.
+  - `hasher_werkzeug.py`: hash de contraseñas (`HasherContrasenaPort`).
   - `emisor_jwt.py`: Emisión de tokens con `PyJWT` (`JwtEmisorTokenAdapter`).
 - **Punto Único de Composición (`matera/app.py`):** Instancia adaptadores, resuelve dependencias y ensambla la aplicación.
 
@@ -40,6 +42,12 @@ SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn,
    python -c "import secrets; print(secrets.token_urlsafe(32))"   # genera una clave para pegar en .env
    ```
    Si no se configura, el backend arranca con una clave temporal y los tokens dejan de servir al reiniciarlo.
+
+   La base de datos `data/matera.db` se crea sola al arrancar, con los scripts de `data/bd/`. Los usuarios de demostración (Ana y Carlos) se cargan mientras `CARGAR_DATOS_DEMO=1`. También se puede crear a mano:
+   ```bash
+   python -m matera.adaptadores.salida.sqlite_bd data/matera.db --demo
+   ```
+   Si tienen una `data/matera.db` creada antes de este cambio, bórrenla: el esquema del historial cambió.
 
 3. **Ejecutar la suite completa de pruebas:**
    ```bash
@@ -118,6 +126,9 @@ Verás que solo se crearon `api_dispositivos.py`, `simulador_esp32.py`, su prueb
 SmartPlantBase/
 ├── data/
 │   ├── especies_referencia.csv       # Catálogo CSV de 5 especies (Anexo B)
+│   ├── bd/esquema.sql                # Creación de tablas (SQLite)
+│   ├── bd/carga_especies.sql         # Carga de las 5 especies (mismos valores del CSV)
+│   ├── bd/datos_demo.sql             # Ana y Carlos con sus plantas (solo para la demo)
 │   └── matera.db                     # Base de datos SQLite autogenerada
 ├── frontend/
 │   ├── index.html                    # Dashboard (Login + Polling R6 + Form R1)
@@ -146,7 +157,11 @@ SmartPlantBase/
 │   │   └── salida/
 │   │       ├── tabla_csv.py          # Adaptador CSV de TablaReferenciaPort
 │   │       ├── tabla_bd.py           # Adaptador SQLite de TablaReferenciaPort
-│   │       ├── historial_bd.py       # Adaptador SQLite de Historial y Plantas
+│   │       ├── historial_bd.py       # Adaptador SQLite de HistorialLecturasPort (valores en JSON)
+│   │       ├── usuarios_bd.py        # Adaptador SQLite de UsuariosPort
+│   │       ├── plantas_bd.py         # Adaptador SQLite de PlantasPort
+│   │       ├── sqlite_bd.py          # Conexión y creación de la base con data/bd/*.sql
+│   │       ├── hasher_werkzeug.py    # Adaptador de HasherContrasenaPort
 │   │       └── emisor_jwt.py         # Adaptador PyJWT de EmisorTokenPort
 │   └── app.py                        # Composition Root (create_app)
 ├── app.py                            # Punto de arranque en raíz (delega a matera.app)

@@ -17,9 +17,12 @@ from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
 from matera.adaptadores.entrada.verificador_jwt import JwtVerificadorToken
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
-from matera.adaptadores.salida.historial_bd import BdHistorialYPlantasAdapter
+from matera.adaptadores.salida.historial_bd import BdHistorialLecturasAdapter
+from matera.adaptadores.salida.plantas_bd import BdPlantasAdapter
+from matera.adaptadores.salida.sqlite_bd import inicializar_bd
 from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
+from matera.adaptadores.salida.usuarios_bd import BdUsuariosAdapter
 from matera.dominio.excepciones import (
     AccesoNoAutorizadoPlantaError,
     CredencialesInvalidasError,
@@ -163,6 +166,7 @@ def create_app(
     ruta_csv: Optional[str] = None,
     ruta_bd: Optional[str] = None,
     clave_jwt: Optional[str] = None,
+    datos_demo: Optional[bool] = None,
 ) -> Flask:
     """
     Fábrica de la aplicación Flask en Arquitectura Hexagonal.
@@ -179,6 +183,12 @@ def create_app(
     if ruta_bd is None:
         ruta_bd = str(ruta_base / "data" / "matera.db")
 
+    # 1b. Base de datos: tablas desde data/bd/esquema.sql; los datos de demostración
+    #     (Ana y Carlos) solo se cargan si se piden con CARGAR_DATOS_DEMO=1.
+    if datos_demo is None:
+        datos_demo = os.getenv("CARGAR_DATOS_DEMO", "1").strip() == "1"
+    inicializar_bd(ruta_bd, datos_demo=datos_demo)
+
     # 2. Selección del adaptador de TablaReferenciaPort (R4: CSV vs SQLite)
     modo_tabla = (driver_tabla or os.getenv("TABLA_REFERENCIA_DRIVER", "csv")).strip().lower()
     if modo_tabla == "bd":
@@ -186,11 +196,10 @@ def create_app(
     else:
         tabla_referencia = CsvTablaReferenciaAdapter(ruta_csv)
 
-    # 3. Adaptador SQLite: implementa HistorialLecturasPort, UsuariosPort y PlantasPort (R5, R7)
-    persistencia_bd = BdHistorialYPlantasAdapter(ruta_bd)
-    historial = persistencia_bd
-    usuarios = persistencia_bd
-    plantas = persistencia_bd
+    # 3. Adaptadores SQLite: uno por puerto de salida (R5, R7)
+    historial = BdHistorialLecturasAdapter(ruta_bd)
+    usuarios = BdUsuariosAdapter(ruta_bd)
+    plantas = BdPlantasAdapter(ruta_bd)
 
     # 4. Tokens JWT (R7): la misma clave firma (emisor, salida) y verifica (verificador, entrada)
     clave_jwt = clave_jwt or os.getenv("JWT_SECRET") or _clave_temporal()
