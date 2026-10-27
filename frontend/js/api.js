@@ -1,7 +1,7 @@
 /**
  * Capa de acceso a la API (cliente HTTP).
- * Construye las peticiones asíncronas con cabeceras Bearer cuando se requiere.
- * No toca el DOM ni conoce ningún elemento visual.
+ * Arma las peticiones fetch, agrega el token Bearer cuando hace falta
+ * y convierte cualquier error en un ApiError uniforme. No toca el DOM.
  */
 
 class ApiError extends Error {
@@ -14,73 +14,81 @@ class ApiError extends Error {
 }
 
 const PlantApi = {
-    /** R1: catálogo de especies soportadas con sus rangos de referencia. */
-    async obtenerEspecies() {
-        return this._pedir(`${CONFIG.API_BASE}/v1/especies`);
+    // --- Catálogo (público) ---------------------------------------------
+    /** R1: especies soportadas con sus rangos de referencia. */
+    obtenerEspecies() {
+        return this._pedir('/v1/especies');
     },
 
-    /** R1: envía una medición manual y devuelve el diagnóstico. */
-    async evaluarDiagnostico(especie, valores) {
-        return this._pedir(`${CONFIG.API_BASE}/v1/diagnosticos`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ especie, ...valores }),
+    // --- Sesión (R7) ----------------------------------------------------
+    registrarUsuario(nombre, email, password) {
+        return this._pedir('/auth/registro', { metodo: 'POST', cuerpo: { nombre, email, password } });
+    },
+
+    iniciarSesion(email, password) {
+        return this._pedir('/auth/login', { metodo: 'POST', cuerpo: { email, password } });
+    },
+
+    // --- Diagnóstico manual (R1, exige sesión) --------------------------
+    evaluarDiagnostico(token, especie, valores) {
+        return this._pedir('/v1/diagnosticos', { metodo: 'POST', token, cuerpo: { especie, ...valores } });
+    },
+
+    // --- Plantas (R5, R6, R7) -------------------------------------------
+    obtenerPlantas(token) {
+        return this._pedir('/plantas', { token });
+    },
+
+    registrarPlanta(token, nombre, especie, dispositivoId) {
+        return this._pedir('/plantas', {
+            metodo: 'POST',
+            token,
+            cuerpo: { nombre, especie, dispositivo_id: dispositivoId },
         });
     },
 
-    /** R7: inicio de sesión y obtención de JWT. */
-    async login(email, password) {
-        return this._pedir(`${CONFIG.API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
-        });
+    obtenerTokenDispositivo(token, plantaId) {
+        return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/token-dispositivo`, { metodo: 'POST', token });
     },
 
-    /** R7: listar plantas del usuario autenticado. */
-    async obtenerPlantas(token) {
-        return this._pedir(`${CONFIG.API_BASE}/plantas`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+    obtenerEstadoPlanta(token, plantaId) {
+        return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/estado`, { token });
     },
 
-    /** R5, R6: consultar estado en vivo y última lectura de una planta. */
-    async obtenerEstadoPlanta(plantaId, token) {
-        return this._pedir(`${CONFIG.API_BASE}/plantas/${plantaId}/estado`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
+    obtenerHistorialPlanta(token, plantaId, limite) {
+        return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/historial?limite=${limite}`, { token });
     },
 
-    /** R5: consultar lecturas históricas de una planta. */
-    async obtenerHistorialPlanta(plantaId, token, limite = 10) {
-        return this._pedir(`${CONFIG.API_BASE}/plantas/${plantaId}/historial?limite=${limite}`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-    },
+    // --- Petición genérica ----------------------------------------------
+    async _pedir(ruta, { metodo = 'GET', token = null, cuerpo = null } = {}) {
+        const cabeceras = {};
+        if (cuerpo !== null) cabeceras['Content-Type'] = 'application/json';
+        if (token) cabeceras.Authorization = `Bearer ${token}`;
 
-    /** Petición genérica con traducción uniforme de errores. */
-    async _pedir(url, opciones = {}) {
         let respuesta;
         try {
-            respuesta = await fetch(url, opciones);
+            respuesta = await fetch(`${CONFIG.API_BASE}${ruta}`, {
+                method: metodo,
+                headers: cabeceras,
+                body: cuerpo !== null ? JSON.stringify(cuerpo) : undefined,
+            });
         } catch (fallo) {
             throw new ApiError(
                 'SIN_CONEXION',
-                `No fue posible comunicarse con el backend en ${CONFIG.API_BASE}. Verifica que app.py esté corriendo.`,
-                null,
-                0
+                `No fue posible comunicarse con el backend en ${CONFIG.API_BASE}. Verifica que app.py esté corriendo.`
             );
         }
 
         const datos = await respuesta.json().catch(() => null);
-
         if (!respuesta.ok) {
-            const codigo = (datos && datos.error) || 'ERROR_DESCONOCIDO';
-            const mensaje = (datos && datos.mensaje) || `Error HTTP ${respuesta.status}`;
-            const campo = (datos && datos.detalle && (datos.detalle.campo || datos.detalle.especie)) || null;
-            throw new ApiError(codigo, mensaje, campo, respuesta.status);
+            const detalle = (datos && datos.detalle) || {};
+            throw new ApiError(
+                (datos && datos.error) || 'ERROR_DESCONOCIDO',
+                (datos && datos.mensaje) || `Error HTTP ${respuesta.status}`,
+                detalle.campo || null,
+                respuesta.status
+            );
         }
-
         return datos;
     },
 };

@@ -417,3 +417,136 @@ body {
     border-color: #e5534b;
     box-shadow: 0 0 0 3px rgba(229, 83, 75, 0.18);
 }
+
+
+/* ==========================================================================
+   FASE 2: sesión, plantas, panel en vivo e historial
+   ========================================================================== */
+
+.seccion { margin-bottom: 1.5rem; }
+.texto-suave { color: var(--text-muted); font-size: 0.9rem; }
+.pequeno { font-size: 0.78rem; }
+.subtitulo { margin: 1.25rem 0 0.75rem; font-size: 1rem; }
+.fila { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; justify-content: space-between; margin-top: 0.6rem; }
+.fila input { flex: 1 1 220px; min-width: 0; }
+
+/* Mensaje de éxito */
+.alert-ok {
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    border-radius: var(--radius-md);
+    padding: 0.9rem 1.2rem;
+    margin-bottom: 1.5rem;
+    color: #a7f3d0;
+}
+
+/* Botones secundarios */
+.btn-secundario,
+.btn-peligro {
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-main);
+}
+.btn-secundario:hover { background: rgba(255, 255, 255, 0.12); }
+.btn-secundario:disabled,
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+.btn-peligro { background: var(--danger-bg); border-color: var(--danger-border); color: #fecaca; }
+.btn-peligro:hover { background: rgba(239, 68, 68, 0.28); }
+.ancho { width: 100%; }
+
+/* Pestañas de inicio de sesión / registro */
+.tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.tab {
+    flex: 1;
+    padding: 0.7rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tab.activa { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+
+.form-inline {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0 1rem;
+    align-items: end;
+}
+.form-inline .btn-primary { margin-bottom: 1.25rem; }
+
+/* Barra de sesión */
+.sesion-bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 1rem 1.5rem; }
+
+/* Inputs fuera de .form-group (token y planta ajena) */
+.fila input,
+.ajena input {
+    padding: 0.65rem 0.9rem;
+    background: rgba(13, 19, 26, 0.7);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+.ajena { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color); }
+.ajena label { font-size: 0.9rem; color: var(--text-muted); }
+.campo-invalido { border-color: #e5534b !important; box-shadow: 0 0 0 3px rgba(229, 83, 75, 0.18); }
+
+/* Caja del token del dispositivo */
+.token-box h3 { font-size: 1.05rem; margin-bottom: 0.4rem; }
+.token-box code { color: var(--success); }
+.token-box input { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* Panel en vivo */
+.live-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.live-header h2 { margin: 0; }
+.metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.9rem; }
+.metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+}
+.metric-titulo { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.metric-valor { font-size: 1.3rem; font-weight: 700; }
+.texto-SALUDABLE { color: var(--success); }
+.texto-EN_RIESGO { color: var(--warning); }
+.texto-CRITICO { color: var(--danger); }
+#poll-status.poll-error { color: #fca5a5; }
+
+/* Chips de estado (parámetros e historial) */
+.chip {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-top: 0.3rem;
+    border: 1px solid var(--border-color);
+}
+.chip-OPTIMO, .chip-SALUDABLE { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+.chip-BAJO, .chip-ALTO, .chip-EN_RIESGO { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+.chip-CRITICO { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+
+/* Tabla de historial */
+.tabla-scroll { overflow-x: auto; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.tabla th, .tabla td { padding: 0.55rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.tabla th { color: var(--text-muted); font-weight: 500; font-size: 0.78rem; text-transform: uppercase; }
+.tabla .chip { margin-top: 0; }
+.tabla-vacia { color: var(--text-muted); text-align: center !important; }
+.form-card .texto-suave { margin-bottom: 1rem; }

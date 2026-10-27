@@ -8,40 +8,122 @@ const PlantUI = {
         return document.getElementById(id);
     },
 
+    _capitalizar(texto) {
+        return texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : '';
+    },
+
     /** Etiqueta legible de un parámetro a partir de su nombre y unidad. */
     _etiqueta(nombre, unidad) {
-        const titulo = nombre.charAt(0).toUpperCase() + nombre.slice(1);
+        const titulo = this._capitalizar(nombre);
         return unidad ? `${titulo} (${unidad})` : titulo;
     },
 
-    /** RF5: llena el selector de especies con el catálogo recibido. */
-    poblarSelector(especies) {
-        const select = this._el('especie');
-        select.innerHTML = '';
+    _mostrar(id, visible) {
+        this._el(id).classList.toggle('hidden', !visible);
+    },
 
-        const inicial = document.createElement('option');
-        inicial.value = '';
-        inicial.disabled = true;
-        inicial.selected = true;
-        inicial.textContent = 'Selecciona una especie...';
-        select.appendChild(inicial);
+    // ------------------------------------------------------------------
+    // Avisos y errores (RF6)
+    // ------------------------------------------------------------------
 
-        especies.forEach((esp) => {
-            const option = document.createElement('option');
-            option.value = esp.nombre;
-            option.textContent = esp.nombre.charAt(0).toUpperCase() + esp.nombre.slice(1);
-            select.appendChild(option);
+    /** Muestra un error de forma visible, sin volcar JSON en pantalla. */
+    mostrarError(titulo, mensaje) {
+        this._mostrar('aviso-banner', false);
+        this._el('error-title').textContent = `⚠️ ${titulo}`;
+        this._el('error-message').textContent = mensaje;
+        this._mostrar('error-banner', true);
+    },
+
+    mostrarAviso(mensaje) {
+        this._mostrar('error-banner', false);
+        this._el('aviso-message').textContent = mensaje;
+        this._mostrar('aviso-banner', true);
+    },
+
+    ocultarMensajes() {
+        this._mostrar('error-banner', false);
+        this._mostrar('aviso-banner', false);
+        this.marcarCampo(null);
+    },
+
+    /** Resalta el campo que el backend señaló en el error. */
+    marcarCampo(nombre) {
+        document.querySelectorAll('.campo-invalido').forEach((n) => n.classList.remove('campo-invalido'));
+        if (!nombre) return;
+        const candidato = document.querySelector(
+            `#param-${nombre}, form:not(.hidden) [name="${nombre}"]`
+        );
+        if (candidato) {
+            candidato.classList.add('campo-invalido');
+            candidato.focus();
+        }
+    },
+
+    // ------------------------------------------------------------------
+    // Sesión (R7)
+    // ------------------------------------------------------------------
+
+    mostrarPestanaAuth(pestana) {
+        const esLogin = pestana === 'login';
+        this._mostrar('form-login', esLogin);
+        this._mostrar('form-registro', !esLogin);
+        this._el('tab-login').classList.toggle('activa', esLogin);
+        this._el('tab-registro').classList.toggle('activa', !esLogin);
+    },
+
+    leerLogin() {
+        return {
+            email: this._el('login-email').value.trim(),
+            password: this._el('login-password').value,
+        };
+    },
+
+    leerRegistro() {
+        return {
+            nombre: this._el('registro-nombre').value.trim(),
+            email: this._el('registro-email').value.trim(),
+            password: this._el('registro-password').value,
+        };
+    },
+
+    mostrarSesion(usuario) {
+        this._el('sesion-usuario').textContent = `${usuario.nombre} · ${usuario.email}`;
+        this._mostrar('auth-panel', false);
+        ['sesion-bar', 'plantas-panel'].forEach((id) => this._mostrar(id, true));
+        this._el('form-login').reset();
+        this._el('form-registro').reset();
+        this.habilitarDiagnostico(true);
+    },
+
+    mostrarSinSesion() {
+        this._mostrar('auth-panel', true);
+        ['sesion-bar', 'plantas-panel', 'live-panel', 'token-box'].forEach((id) => this._mostrar(id, false));
+        this.habilitarDiagnostico(false);
+    },
+
+    // ------------------------------------------------------------------
+    // Catálogo y diagnóstico manual (R1)
+    // ------------------------------------------------------------------
+
+    /** RF5: llena los selectores de especie con el catálogo recibido. */
+    poblarEspecies(especies) {
+        ['especie', 'planta-especie'].forEach((id) => {
+            const select = this._el(id);
+            select.innerHTML = '';
+            const inicial = new Option('Selecciona una especie...', '', true, true);
+            inicial.disabled = true;
+            select.appendChild(inicial);
+            especies.forEach((esp) => select.appendChild(new Option(this._capitalizar(esp.nombre), esp.nombre)));
         });
     },
 
     /**
-     * Genera un campo numérico por cada parámetro que la API declara.
-     * El front no tiene escrita la lista de variables: la recibe de RF5.
+     * Genera un campo numérico por cada parámetro que declara la API.
+     * El front no tiene escrita la lista de variables: la recibe del catálogo.
      */
     construirCamposDeMedicion(parametros) {
         const contenedor = this._el('campos-medicion');
         contenedor.innerHTML = '';
-
         parametros.forEach(({ nombre, unidad }) => {
             const grupo = document.createElement('div');
             grupo.className = 'form-group';
@@ -55,66 +137,60 @@ const PlantUI = {
             input.id = `param-${nombre}`;
             input.dataset.parametro = nombre;
             input.step = 'any';
-            input.required = true;
             input.placeholder = `Valor en ${unidad || 'unidades'}`;
 
-            grupo.appendChild(label);
-            grupo.appendChild(input);
+            grupo.append(label, input);
             contenedor.appendChild(grupo);
         });
     },
 
-    /** Devuelve lo que el usuario escribió: {especie, valores}. */
-    leerFormulario() {
+    leerFormularioDiagnostico() {
         const valores = {};
-        this._el('campos-medicion')
-            .querySelectorAll('input[data-parametro]')
-            .forEach((input) => {
-                const crudo = input.value.trim();
-                valores[input.dataset.parametro] = crudo === '' ? null : Number(crudo);
-            });
-
+        this._el('campos-medicion').querySelectorAll('input[data-parametro]').forEach((input) => {
+            const crudo = input.value.trim();
+            valores[input.dataset.parametro] = crudo === '' ? null : Number(crudo);
+        });
         return { especie: this._el('especie').value, valores };
     },
 
-    /** Resalta el campo señalado por el backend en un error de RF6. */
-    marcarCampo(nombre) {
-        this._el('campos-medicion')
-            .querySelectorAll('input[data-parametro]')
-            .forEach((input) => input.classList.remove('campo-invalido'));
-
-        if (!nombre) return;
-        const input = this._el(`param-${nombre}`);
-        if (input) {
-            input.classList.add('campo-invalido');
-            input.focus();
-        }
+    habilitarDiagnostico(habilitado) {
+        this._el('btn-evaluar').disabled = !habilitado;
+        this._el('btn-evaluar-texto').textContent = habilitado
+            ? 'Evaluar lectura manual'
+            : 'Inicia sesión para evaluar';
     },
 
-    /** RF2, RF3, RF4: pinta el diagnóstico devuelto por el servicio. */
+    setCargandoDiagnostico(cargando) {
+        this._el('btn-evaluar').disabled = cargando;
+        this._el('btn-evaluar-texto').textContent = cargando ? 'Evaluando...' : 'Evaluar lectura manual';
+    },
+
+    deshabilitarCatalogo(mensaje) {
+        ['especie', 'planta-especie'].forEach((id) => {
+            this._el(id).innerHTML = `<option value="" disabled selected>${mensaje}</option>`;
+        });
+    },
+
+    /** RF2, RF3, RF4: pinta el diagnóstico manual. */
     renderizarDiagnostico(diagnostico) {
         const tarjeta = this._el('resultado-container');
         tarjeta.classList.remove('state-saludable', 'state-en_riesgo', 'state-critico');
 
         const presentacion = this._presentacionDeEstado(diagnostico.estado);
-        tarjeta.classList.add(presentacion.clase);
+        if (presentacion.clase) tarjeta.classList.add(presentacion.clase);
         this._el('status-icon').textContent = presentacion.icono;
         this._el('status-badge').textContent = diagnostico.estado;
         this._el('status-title').textContent = presentacion.titulo;
-        this._el('status-summary').textContent =
-            `Diagnóstico para la especie ${diagnostico.especie.toUpperCase()}`;
+        this._el('status-summary').textContent = `Diagnóstico para la especie ${diagnostico.especie.toUpperCase()}`;
 
-        this._renderRecomendaciones(diagnostico.recomendaciones);
+        this._renderRecomendaciones(this._el('observations-list'), diagnostico.recomendaciones);
         this._renderParametros(diagnostico.parametros);
 
-        this._el('empty-state').classList.add('hidden');
-        this._el('result-content').classList.remove('hidden');
+        this._mostrar('empty-state', false);
+        this._mostrar('result-content', true);
     },
 
-    /**
-     * Traduce un estado del dominio a su representación visual.
-     * El caso por defecto evita que un estado nuevo se muestre como CRITICO.
-     */
+    /** Traduce un estado del dominio a su representación visual. */
     _presentacionDeEstado(estado) {
         switch (estado) {
             case 'SALUDABLE':
@@ -128,18 +204,15 @@ const PlantUI = {
         }
     },
 
-    _renderRecomendaciones(recomendaciones) {
-        const lista = this._el('observations-list');
+    _renderRecomendaciones(lista, recomendaciones) {
         lista.innerHTML = '';
-
         if (!recomendaciones || recomendaciones.length === 0) {
             const li = document.createElement('li');
             li.className = 'obs-OK';
-            li.textContent = '✓ Todos los parámetros están dentro del rango óptimo. No se requieren ajustes.';
+            li.textContent = '✓ Todos los parámetros están dentro del rango óptimo.';
             lista.appendChild(li);
             return;
         }
-
         recomendaciones.forEach((texto) => {
             const li = document.createElement('li');
             li.className = 'obs-BAJO';
@@ -151,7 +224,6 @@ const PlantUI = {
     _renderParametros(parametros) {
         const grid = this._el('ranges-grid');
         grid.innerHTML = '';
-
         parametros.forEach((param) => {
             const item = document.createElement('div');
             item.className = 'range-item';
@@ -165,43 +237,140 @@ const PlantUI = {
             valor.textContent = `${param.valor} ${param.unidad}`;
 
             const estado = document.createElement('span');
-            estado.className = `status-badge obs-${param.estado}`;
-            estado.style.cssText = 'margin-top:0.3rem; display:inline-block;';
+            estado.className = `chip chip-${param.estado}`;
             estado.textContent = param.estado;
 
             const optimo = document.createElement('span');
-            optimo.className = 'range-label';
-            optimo.style.cssText = 'font-size:0.7rem; margin-top:0.2rem;';
-            optimo.textContent = `Óptimo: ${param.rangoOptimo[0]} - ${param.rangoOptimo[1]}`;
+            optimo.className = 'range-label pequeno';
+            optimo.textContent = `Óptimo: ${param.rango_optimo[0]} - ${param.rango_optimo[1]}`;
 
-            [etiqueta, valor, estado, optimo].forEach((n) => item.appendChild(n));
+            item.append(etiqueta, valor, estado, optimo);
             grid.appendChild(item);
         });
     },
 
-    /** RF6: muestra el error de forma visible, sin volcar JSON en pantalla. */
-    mostrarError(titulo, mensaje) {
-        this._el('error-title').textContent = `⚠️ ${titulo}`;
-        this._el('error-message').textContent = mensaje;
-        this._el('error-banner').classList.remove('hidden');
+    // ------------------------------------------------------------------
+    // Plantas del usuario y token del dispositivo (R7)
+    // ------------------------------------------------------------------
+
+    poblarPlantas(plantas, seleccionadaId) {
+        const select = this._el('planta-select');
+        select.innerHTML = '';
+        if (plantas.length === 0) {
+            select.appendChild(new Option('Aún no tienes plantas: registra una', '', true, true));
+            select.disabled = true;
+            this._el('btn-token-dispositivo').disabled = true;
+            return;
+        }
+        select.disabled = false;
+        this._el('btn-token-dispositivo').disabled = false;
+        plantas.forEach((p) => {
+            const texto = `${p.nombre} · ${this._capitalizar(p.especie)} · ${p.dispositivo_id}`;
+            select.appendChild(new Option(texto, p.id, false, p.id === seleccionadaId));
+        });
     },
 
-    ocultarError() {
-        this._el('error-banner').classList.add('hidden');
-        this.marcarCampo(null);
+    plantaSeleccionada() {
+        return this._el('planta-select').value || null;
     },
 
-    /** Estado de carga del botón, sin reconstruir su contenido. */
-    setCargando(cargando) {
-        const boton = this._el('btn-evaluar');
-        const texto = this._el('btn-evaluar-texto');
-        boton.disabled = cargando;
-        texto.textContent = cargando ? 'Evaluando...' : 'Evaluar diagnóstico';
+    leerNuevaPlanta() {
+        return {
+            nombre: this._el('planta-nombre').value.trim(),
+            especie: this._el('planta-especie').value,
+            dispositivoId: this._el('planta-dispositivo').value.trim(),
+        };
     },
 
-    deshabilitarFormulario(mensaje) {
-        const select = this._el('especie');
-        select.innerHTML = `<option value="" disabled selected>${mensaje}</option>`;
-        this._el('btn-evaluar').disabled = true;
+    limpiarNuevaPlanta() {
+        this._el('form-planta').reset();
+    },
+
+    /** Muestra el token del dispositivo y el comando listo para el simulador. */
+    mostrarTokenDispositivo(dispositivoId, token, urlBackend) {
+        this._el('token-dispositivo-id').textContent = dispositivoId;
+        this._el('token-valor').value = token;
+        this._el('token-comando').value =
+            `python simulador_esp32.py --url ${urlBackend} --dispositivo-id ${dispositivoId} --token ${token}`;
+        this._mostrar('token-box', true);
+    },
+
+    // ------------------------------------------------------------------
+    // Panel en vivo e historial (R5, R6)
+    // ------------------------------------------------------------------
+
+    prepararPanelEnVivo(planta) {
+        this._el('live-plant-title').textContent = `🌿 ${planta.nombre} (${this._capitalizar(planta.especie)})`;
+        this._el('live-dispositivo').textContent = `Dispositivo: ${planta.dispositivo_id}`;
+        this._el('live-status').textContent = 'Consultando...';
+        this._el('live-status').className = 'metric-valor';
+        ['live-humedad', 'live-luz', 'live-temperatura'].forEach((id) => (this._el(id).textContent = '--'));
+        this._el('live-marca').textContent = 'Última lectura: --';
+        this._el('live-recs').innerHTML = '';
+        this._el('historial-body').innerHTML = '';
+        this._mostrar('live-panel', true);
+    },
+
+    renderizarEstadoEnVivo(estado) {
+        const status = this._el('live-status');
+        if (!estado.ultima_lectura) {
+            status.textContent = 'SIN LECTURAS AÚN';
+            status.className = 'metric-valor';
+            this._el('live-recs').innerHTML = '';
+            const li = document.createElement('li');
+            li.className = 'obs-OK';
+            li.textContent = 'Arranca el simulador con el token del dispositivo para ver lecturas aquí.';
+            this._el('live-recs').appendChild(li);
+            return;
+        }
+
+        const v = estado.ultima_lectura.valores || {};
+        this._el('live-humedad').textContent = `${v.humedad ?? '--'} %`;
+        this._el('live-luz').textContent = `${v.luz ?? '--'} lux`;
+        this._el('live-temperatura').textContent = `${v.temperatura ?? '--'} °C`;
+        this._el('live-marca').textContent = `Última lectura: ${this._formatearFecha(estado.ultima_lectura.marca_tiempo)}`;
+
+        if (estado.diagnostico) {
+            status.textContent = estado.diagnostico.estado;
+            status.className = `metric-valor texto-${estado.diagnostico.estado}`;
+            this._renderRecomendaciones(this._el('live-recs'), estado.diagnostico.recomendaciones);
+        }
+    },
+
+    renderizarHistorial(registros) {
+        const cuerpo = this._el('historial-body');
+        cuerpo.innerHTML = '';
+        if (registros.length === 0) {
+            const fila = cuerpo.insertRow();
+            const celda = fila.insertCell();
+            celda.colSpan = 5;
+            celda.className = 'tabla-vacia';
+            celda.textContent = 'Todavía no hay lecturas guardadas.';
+            return;
+        }
+        registros.forEach((r) => {
+            const fila = cuerpo.insertRow();
+            const v = r.valores || {};
+            [this._formatearFecha(r.marca_tiempo), v.humedad, v.luz, v.temperatura].forEach((dato) => {
+                fila.insertCell().textContent = dato ?? '--';
+            });
+            const chip = document.createElement('span');
+            chip.className = `chip chip-${r.estado_planta}`;
+            chip.textContent = r.estado_planta;
+            fila.insertCell().appendChild(chip);
+        });
+    },
+
+    /** Línea de estado del polling: así un fallo de red se ve en pantalla, no solo en consola. */
+    mostrarEstadoPolling(texto, ok) {
+        const linea = this._el('poll-status');
+        linea.textContent = texto;
+        linea.classList.toggle('poll-error', !ok);
+    },
+
+    _formatearFecha(iso) {
+        if (!iso) return '--';
+        const fecha = new Date(iso);
+        return Number.isNaN(fecha.getTime()) ? iso : fecha.toLocaleString();
     },
 };

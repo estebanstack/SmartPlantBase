@@ -62,9 +62,12 @@ def crear_api_front_blueprint(
     # R1: Endpoints compatibles con Fase 1 (/api/v1/...)
     # -------------------------------------------------------------------------
     @api_bp.route("/v1/diagnosticos", methods=["POST"])
-    def evaluar_diagnostico_v1():
+    @requiere_usuario(verificador)
+    def evaluar_diagnostico_v1(usuario_id: str):
         """
         POST /api/v1/diagnosticos (R1 - Conservar validación de Fase 1).
+        Exige JWT de usuario (R7). El usuario_id no se usa: el diagnóstico manual
+        no depende de quién lo pida, pero solo usuarios con sesión pueden pedirlo.
         """
         if not request.is_json:
             raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON válido.")
@@ -91,6 +94,7 @@ def crear_api_front_blueprint(
     def listar_especies_v1():
         """
         GET /api/v1/especies (R1).
+        Público a propósito: es el catálogo de referencia, no tiene datos de ningún usuario.
         """
         especies = consultar_especies.listar_especies()
         return jsonify([especie_a_json(e) for e in especies]), 200

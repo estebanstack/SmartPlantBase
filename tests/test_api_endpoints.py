@@ -3,16 +3,42 @@ Pruebas de integración de la API REST (Capa de Presentación).
 Verifica los endpoints /api/v1/diagnosticos y /api/v1/especies,
 el cumplimiento de Anexo A y el manejo uniforme de errores de RF6.
 """
+import tempfile
+from pathlib import Path
+
 import pytest
-from app import create_app
+
+from matera.app import create_app
+
+CLAVE_PRUEBAS = "clave-solo-para-pruebas-con-32-bytes-o-mas"
 
 
 @pytest.fixture
 def client():
-    app = create_app()
+    """Cliente con sesión iniciada como Ana: el diagnóstico exige JWT de usuario (R7)."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        ruta_bd = f.name
+    app = create_app(ruta_bd=ruta_bd, clave_jwt=CLAVE_PRUEBAS)
     app.config["TESTING"] = True
     with app.test_client() as test_client:
+        token = test_client.post(
+            "/api/auth/login", json={"email": "ana@matera.edu.co", "password": "clave123"}
+        ).get_json()["token"]
+        test_client.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
         yield test_client
+    Path(ruta_bd).unlink(missing_ok=True)
+
+
+def test_diagnostico_sin_sesion_responde_401(client):
+    client.environ_base.pop("HTTP_AUTHORIZATION")
+    payload = {"especie": "potos", "humedad": 50.0, "luz": 600, "temperatura": 22.0}
+    response = client.post("/api/v1/diagnosticos", json=payload)
+    assert response.status_code == 401
+
+
+def test_catalogo_de_especies_es_publico(client):
+    client.environ_base.pop("HTTP_AUTHORIZATION")
+    assert client.get("/api/v1/especies").status_code == 200
 
 
 def test_endpoint_listar_especies(client):

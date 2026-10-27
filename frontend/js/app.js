@@ -1,40 +1,57 @@
 /**
- * Orquestación del cliente web (Arquitectura Hexagonal).
- * Gestiona la sesión JWT (R7), el polling periódico (R6) y el formulario manual (R1).
+ * Orquestación del cliente web.
+ * Une los eventos de la página con la API (api.js) y la presentación (ui.js):
+ * sesión con JWT (R7), plantas del usuario, polling periódico del estado e
+ * historial (R5, R6) y el diagnóstico manual de la fase anterior (R1).
  */
 
-let sesionActual = {
-    token: null,
-    usuario: null,
-    plantaId: null,
-};
-
+const sesion = { token: null, usuario: null };
+let plantas = [];
 let intervaloPolling = null;
+let consultaEnCurso = false;
 
 document.addEventListener('DOMContentLoaded', () => {
-    inicializarCatalogo();
-    configurarEventosSesion();
-
-    document.getElementById('plant-form').addEventListener('submit', async (evento) => {
-        evento.preventDefault();
-        await evaluarManual();
-    });
-
-    document.getElementById('btn-probar-ajena').addEventListener('click', async () => {
-        await probarAccesoPlantaAjena();
-    });
+    conectarEventos();
+    cargarCatalogo();
+    restaurarSesion();
 });
 
-/** R1: Carga catálogo botánico para el formulario manual. */
-async function inicializarCatalogo() {
+function conectarEventos() {
+    document.getElementById('tab-login').addEventListener('click', () => PlantUI.mostrarPestanaAuth('login'));
+    document.getElementById('tab-registro').addEventListener('click', () => PlantUI.mostrarPestanaAuth('registro'));
+    alEnviar('form-login', iniciarSesion);
+    alEnviar('form-registro', registrarUsuario);
+    alEnviar('form-planta', registrarPlanta);
+    alEnviar('form-diagnostico', evaluarManual);
+    alEnviar('form-ajena', probarPlantaAjena);
+    document.getElementById('btn-logout').addEventListener('click', () => cerrarSesion());
+    document.getElementById('planta-select').addEventListener('change', () => seleccionarPlanta(PlantUI.plantaSeleccionada()));
+    document.getElementById('btn-token-dispositivo').addEventListener('click', pedirTokenDispositivo);
+    document.getElementById('btn-copiar-comando').addEventListener('click', () => copiar('token-comando'));
+    document.getElementById('btn-copiar-token').addEventListener('click', () => copiar('token-valor'));
+}
+
+/** Evita que el formulario recargue la página (RA2) y llama a la acción. */
+function alEnviar(idFormulario, accion) {
+    document.getElementById(idFormulario).addEventListener('submit', async (evento) => {
+        evento.preventDefault();
+        PlantUI.ocultarMensajes();
+        await accion();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo (R1)
+// ---------------------------------------------------------------------------
+
+async function cargarCatalogo() {
     try {
-        PlantUI.ocultarError();
         const especies = await PlantApi.obtenerEspecies();
-        PlantUI.poblarSelector(especies);
+        PlantUI.poblarEspecies(especies);
         PlantUI.construirCamposDeMedicion(parametrosDe(especies));
     } catch (error) {
         PlantUI.mostrarError('No se pudo cargar el catálogo', error.message);
-        PlantUI.deshabilitarFormulario('Catálogo no disponible');
+        PlantUI.deshabilitarCatalogo('Catálogo no disponible');
     }
 }
 
@@ -42,182 +59,243 @@ function parametrosDe(especies) {
     const vistos = new Map();
     especies.forEach((esp) => {
         Object.entries(esp.rangos || {}).forEach(([nombre, rango]) => {
-            if (!vistos.has(nombre)) {
-                vistos.set(nombre, { nombre, unidad: rango.unidad });
-            }
+            if (!vistos.has(nombre)) vistos.set(nombre, { nombre, unidad: rango.unidad });
         });
     });
     return Array.from(vistos.values());
 }
 
-/** R1: Envío de medición manual. */
-async function evaluarManual() {
-    PlantUI.ocultarError();
-    const { especie, valores } = PlantUI.leerFormulario();
+// ---------------------------------------------------------------------------
+// Sesión (R7)
+// ---------------------------------------------------------------------------
 
+async function iniciarSesion() {
+    const { email, password } = PlantUI.leerLogin();
+    try {
+        abrirSesion(await PlantApi.iniciarSesion(email, password));
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+async function registrarUsuario() {
+    const { nombre, email, password } = PlantUI.leerRegistro();
+    try {
+        abrirSesion(await PlantApi.registrarUsuario(nombre, email, password));
+        PlantUI.mostrarAviso('Cuenta creada. Ahora registra tu primera planta.');
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+function abrirSesion({ token, usuario }) {
+    sesion.token = token;
+    sesion.usuario = usuario;
+    guardarSesion();
+    PlantUI.mostrarSesion(usuario);
+    cargarPlantas();
+}
+
+function cerrarSesion(mensaje) {
+    detenerPolling();
+    sesion.token = null;
+    sesion.usuario = null;
+    plantas = [];
+    guardarSesion();
+    PlantUI.mostrarSinSesion();
+    if (mensaje) PlantUI.mostrarError('Sesión cerrada', mensaje);
+}
+
+/** La sesión se guarda solo en esta pestaña (sessionStorage) para no perderla al recargar. */
+function guardarSesion() {
+    try {
+        if (sesion.token) sessionStorage.setItem('matera-sesion', JSON.stringify(sesion));
+        else sessionStorage.removeItem('matera-sesion');
+    } catch (_) {
+        /* sin almacenamiento disponible: la sesión vive solo en memoria */
+    }
+}
+
+function restaurarSesion() {
+    try {
+        const guardada = JSON.parse(sessionStorage.getItem('matera-sesion') || 'null');
+        if (guardada && guardada.token) {
+            abrirSesion(guardada);
+            return;
+        }
+    } catch (_) {
+        /* ignorar */
+    }
+    PlantUI.mostrarSinSesion();
+}
+
+// ---------------------------------------------------------------------------
+// Plantas y token del dispositivo (R7)
+// ---------------------------------------------------------------------------
+
+async function cargarPlantas(seleccionarId = null) {
+    try {
+        plantas = await PlantApi.obtenerPlantas(sesion.token);
+        const elegida = seleccionarId || (plantas[0] && plantas[0].id) || null;
+        PlantUI.poblarPlantas(plantas, elegida);
+        seleccionarPlanta(elegida);
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+function seleccionarPlanta(plantaId) {
+    detenerPolling();
+    const planta = plantas.find((p) => p.id === plantaId);
+    if (!planta) return;
+    PlantUI.prepararPanelEnVivo(planta);
+    iniciarPolling(planta.id);
+}
+
+async function registrarPlanta() {
+    const { nombre, especie, dispositivoId } = PlantUI.leerNuevaPlanta();
+    if (!especie) {
+        PlantUI.mostrarError('Falta la especie', 'Selecciona la especie de la planta.');
+        return;
+    }
+    try {
+        const respuesta = await PlantApi.registrarPlanta(sesion.token, nombre, especie, dispositivoId);
+        PlantUI.limpiarNuevaPlanta();
+        PlantUI.mostrarAviso(`Planta "${respuesta.planta.nombre}" registrada. Copia el token para su dispositivo.`);
+        PlantUI.mostrarTokenDispositivo(respuesta.planta.dispositivo_id, respuesta.token_dispositivo, urlBackend());
+        await cargarPlantas(respuesta.planta.id);
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+async function pedirTokenDispositivo() {
+    const plantaId = PlantUI.plantaSeleccionada();
+    const planta = plantas.find((p) => p.id === plantaId);
+    if (!planta) return;
+    try {
+        const respuesta = await PlantApi.obtenerTokenDispositivo(sesion.token, planta.id);
+        PlantUI.mostrarTokenDispositivo(planta.dispositivo_id, respuesta.token_dispositivo, urlBackend());
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+/** El simulador necesita la URL del backend sin el sufijo /api. */
+function urlBackend() {
+    return CONFIG.API_BASE.replace(/\/api\/?$/, '');
+}
+
+async function copiar(idCampo) {
+    const campo = document.getElementById(idCampo);
+    try {
+        await navigator.clipboard.writeText(campo.value);
+        PlantUI.mostrarAviso('Copiado al portapapeles.');
+    } catch (_) {
+        campo.select(); // si el navegador no deja copiar, al menos queda seleccionado
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Polling del estado y el historial (R5, R6)
+// ---------------------------------------------------------------------------
+
+function iniciarPolling(plantaId) {
+    actualizarPanel(plantaId);
+    intervaloPolling = setInterval(() => actualizarPanel(plantaId), CONFIG.INTERVALO_POLLING_MS);
+}
+
+function detenerPolling() {
+    if (intervaloPolling) clearInterval(intervaloPolling);
+    intervaloPolling = null;
+}
+
+async function actualizarPanel(plantaId) {
+    if (!sesion.token || consultaEnCurso) return;
+    consultaEnCurso = true;
+    try {
+        const [estado, historial] = await Promise.all([
+            PlantApi.obtenerEstadoPlanta(sesion.token, plantaId),
+            PlantApi.obtenerHistorialPlanta(sesion.token, plantaId, CONFIG.LECTURAS_EN_HISTORIAL),
+        ]);
+        PlantUI.renderizarEstadoEnVivo(estado);
+        PlantUI.renderizarHistorial(historial);
+        PlantUI.mostrarEstadoPolling(
+            `Actualizado ${new Date().toLocaleTimeString()} · se consulta cada ${CONFIG.INTERVALO_POLLING_MS / 1000} s`,
+            true
+        );
+    } catch (error) {
+        if (error.status === 401) {
+            cerrarSesion('Tu sesión expiró. Inicia sesión otra vez.');
+        } else if (error.codigo === 'SIN_CONEXION') {
+            PlantUI.mostrarEstadoPolling('Sin conexión con el backend. Reintentando...', false);
+        } else {
+            detenerPolling();
+            PlantUI.mostrarEstadoPolling(`Consulta detenida: ${error.message}`, false);
+        }
+    } finally {
+        consultaEnCurso = false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Intento de acceso a una planta ajena (demostración de R7)
+// ---------------------------------------------------------------------------
+
+async function probarPlantaAjena() {
+    const plantaId = document.getElementById('ajena-id').value.trim();
+    if (!plantaId) return;
+    try {
+        await PlantApi.obtenerEstadoPlanta(sesion.token, plantaId);
+        PlantUI.mostrarAviso(`La planta ${plantaId} es tuya, por eso sí puedes verla.`);
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Diagnóstico manual (R1)
+// ---------------------------------------------------------------------------
+
+async function evaluarManual() {
+    const { especie, valores } = PlantUI.leerFormularioDiagnostico();
     if (!especie) {
         PlantUI.mostrarError('Falta la especie', 'Selecciona una especie del catálogo antes de evaluar.');
         return;
     }
-
     try {
-        PlantUI.setCargando(true);
-        const diagnostico = await PlantApi.evaluarDiagnostico(especie, valores);
-        PlantUI.renderizarDiagnostico(diagnostico);
+        PlantUI.setCargandoDiagnostico(true);
+        PlantUI.renderizarDiagnostico(await PlantApi.evaluarDiagnostico(sesion.token, especie, valores));
     } catch (error) {
-        PlantUI.mostrarError(tituloDeError(error.codigo), error.message);
-        PlantUI.marcarCampo(error.campo);
+        manejarError(error);
     } finally {
-        PlantUI.setCargando(false);
+        PlantUI.setCargandoDiagnostico(false);
     }
 }
 
-/** R7: Configuración de eventos de inicio y cierre de sesión. */
-function configurarEventosSesion() {
-    const btnAna = document.getElementById('btn-login-ana');
-    const btnCarlos = document.getElementById('btn-login-carlos');
-    const btnLogout = document.getElementById('btn-logout');
+// ---------------------------------------------------------------------------
+// Errores (RF6): todos se muestran igual, con un título según el código
+// ---------------------------------------------------------------------------
 
-    btnAna.addEventListener('click', async () => {
-        await iniciarSesion('ana@matera.edu.co', 'clave123');
-    });
-
-    btnCarlos.addEventListener('click', async () => {
-        await iniciarSesion('carlos@matera.edu.co', 'clave123');
-    });
-
-    btnLogout.addEventListener('click', () => {
-        cerrarSesion();
-    });
-}
-
-async function iniciarSesion(email, password) {
-    try {
-        PlantUI.ocultarError();
-        const res = await PlantApi.login(email, password);
-        sesionActual.token = res.token;
-        sesionActual.usuario = res.usuario;
-
-        // Actualizar interfaz
-        document.getElementById('user-session-desc').textContent = 
-            `Sesión iniciada: ${res.usuario.nombre} (${res.usuario.email}) · Token Bearer activo.`;
-        document.getElementById('btn-login-ana').classList.add('hidden');
-        document.getElementById('btn-login-carlos').classList.add('hidden');
-        document.getElementById('btn-logout').classList.remove('hidden');
-
-        // Cargar plantas del usuario
-        const plantas = await PlantApi.obtenerPlantas(res.token);
-        if (plantas && plantas.length > 0) {
-            sesionActual.plantaId = plantas[0].id;
-            iniciarPolling(plantas[0]);
-        }
-    } catch (err) {
-        PlantUI.mostrarError('Error de Autenticación', err.message);
-    }
-}
-
-function cerrarSesion() {
-    if (intervaloPolling) {
-        clearInterval(intervaloPolling);
-        intervaloPolling = null;
-    }
-    sesionActual = { token: null, usuario: null, plantaId: null };
-
-    document.getElementById('user-session-desc').textContent = 
-        'No hay sesión activa. Inicia sesión para ver tu planta y activar el polling.';
-    document.getElementById('btn-login-ana').classList.remove('hidden');
-    document.getElementById('btn-login-carlos').classList.remove('hidden');
-    document.getElementById('btn-logout').classList.add('hidden');
-    document.getElementById('live-panel').style.display = 'none';
-}
-
-/** R6: Polling periódico cada 3 segundos. */
-function iniciarPolling(planta) {
-    const livePanel = document.getElementById('live-panel');
-    livePanel.style.display = 'block';
-    document.getElementById('live-plant-title').textContent = 
-        `🌿 ${planta.nombre} (${planta.especie.toUpperCase()})`;
-    document.getElementById('live-dispositivo').textContent = 
-        `Dispositivo sensor: ${planta.dispositivo_id}`;
-
-    // Consulta inmediata
-    consultarTelemetria(planta.id);
-
-    // Consulta periódica cada 3s
-    if (intervaloPolling) clearInterval(intervaloPolling);
-    intervaloPolling = setInterval(() => {
-        consultarTelemetria(planta.id);
-    }, 3000);
-}
-
-async function consultarTelemetria(plantaId) {
-    if (!sesionActual.token) return;
-    try {
-        const data = await PlantApi.obtenerEstadoPlanta(plantaId, sesionActual.token);
-        actualizarTelemetriaUI(data);
-    } catch (err) {
-        console.error('Error en polling de telemetría:', err);
-    }
-}
-
-function actualizarTelemetriaUI(data) {
-    const statusEl = document.getElementById('live-status');
-    const humEl = document.getElementById('live-humedad');
-    const luzEl = document.getElementById('live-luz');
-    const tempEl = document.getElementById('live-temperatura');
-    const marcaEl = document.getElementById('live-marca');
-    const recsEl = document.getElementById('live-recs');
-
-    if (!data.ultima_lectura) {
-        statusEl.textContent = 'SIN LECTURAS AÚN';
-        statusEl.style.color = '#9ca3af';
+function manejarError(error) {
+    if (error.status === 401 && sesion.token) {
+        cerrarSesion('Tu sesión expiró. Inicia sesión otra vez.');
         return;
     }
-
-    const valores = data.ultima_lectura.valores || {};
-    humEl.textContent = `${valores.humedad ?? '--'} %`;
-    luzEl.textContent = `${valores.luz ?? '--'} lux`;
-    tempEl.textContent = `${valores.temperatura ?? '--'} °C`;
-    marcaEl.textContent = `Última lectura: ${data.ultima_lectura.marca_tiempo || '--'}`;
-
-    if (data.diagnostico) {
-        const st = data.diagnostico.estado;
-        statusEl.textContent = st;
-        if (st === 'SALUDABLE') statusEl.style.color = '#10b981';
-        else if (st === 'EN_RIESGO') statusEl.style.color = '#f59e0b';
-        else statusEl.style.color = '#ef4444';
-
-        const recs = data.diagnostico.recomendaciones || [];
-        recsEl.textContent = recs.length > 0 ? `⚠️ ${recs.join(' | ')}` : '✅ Condiciones ambientales óptimas.';
-    }
+    PlantUI.mostrarError(tituloDeError(error), error.message);
+    PlantUI.marcarCampo(error.campo);
 }
 
-/** Demostración en vivo: Intento de acceso a planta ajena (R7 / Sección 7). */
-async function probarAccesoPlantaAjena() {
-    if (!sesionActual.token) {
-        PlantUI.mostrarError('Acceso Denegado', 'Inicia sesión primero (ej. como Carlos).');
-        return;
-    }
-
-    try {
-        // Intenta consultar planta-01 (pertenece a Ana)
-        await PlantApi.obtenerEstadoPlanta('planta-01', sesionActual.token);
-        PlantUI.mostrarError('Acceso Inesperado', 'La consulta fue permitida.');
-    } catch (err) {
-        // Demostración exitosa de regla de negocio de dominio
-        PlantUI.mostrarError(
-            `🛡️ Regla de Propiedad Verificada (HTTP ${err.status} - ${err.codigo})`,
-            `El dominio rechazó la consulta: ${err.message}`
-        );
-    }
-}
-
-function tituloDeError(codigo) {
+function tituloDeError(error) {
     const titulos = {
         ESPECIE_NO_SOPORTADA: 'Especie no soportada',
         PARAMETRO_INVALIDO: 'Dato inválido',
-        ACCESO_DENEGADO: 'Acceso Denegado (403)',
+        CREDENCIALES_INVALIDAS: 'Correo o contraseña incorrectos',
+        USUARIO_YA_EXISTE: 'Ese correo ya tiene cuenta',
+        DISPOSITIVO_YA_VINCULADO: 'Dispositivo ocupado',
+        PLANTA_NO_ENCONTRADA: 'Planta no encontrada',
+        ACCESO_DENEGADO: 'Acceso denegado (403): esa planta no es tuya',
         SIN_CONEXION: 'Sin conexión con el servicio',
     };
-    return titulos[codigo] || 'Error en la solicitud';
+    return titulos[error.codigo] || `Error en la solicitud (${error.status || '?'})`;
 }

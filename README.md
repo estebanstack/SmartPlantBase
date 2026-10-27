@@ -64,10 +64,11 @@ La base de datos SQLite autogenera datos semilla para demostrar de inmediato en 
    ```bash
    python3 -m http.server 8000 --directory frontend/
    ```
-   Abre en el navegador: `http://localhost:8000`.  
-   Haz clic en **"👤 Entrar como Ana"**. Observarás el panel de telemetría en vivo con polling automático cada 3 segundos.
+   Abre en el navegador: `http://localhost:8000` e inicia sesión como Ana (`ana@matera.edu.co` / `clave123`), o crea una cuenta nueva y registra una planta.
+   El panel de la planta consulta el estado y el historial cada 3 segundos, sin recargar la página.
 3. **Terminal 3 (Simulador ESP32):** el simulador necesita el token de su dispositivo, y ese token lo entrega el backend.
-   Para la planta de Ana (`planta-01`, dispositivo `esp32-01`) se pide así:
+   **Desde el front:** en "Mis plantas", pulsa **"Obtener token del dispositivo"** (o registra una planta nueva) y usa **"Copiar comando"**: ya trae la URL, el id del dispositivo y el token.
+   **Desde la terminal**, para la planta de Ana (`planta-01`, dispositivo `esp32-01`):
    ```bash
    # 1) Iniciar sesión como Ana y guardar su token de usuario
    TOKEN_ANA=$(curl -s -X POST http://localhost:5000/api/auth/login \
@@ -98,9 +99,9 @@ TABLA_REFERENCIA_DRIVER=bd python app.py
 El sistema lee las especies desde la tabla SQLite `especies` sin modificar ni una sola línea de código en el dominio.
 
 ### Demostración 3: Intento de acceso a una planta ajena — debe fallar (R7)
-1. En el frontend, haz clic en **"👤 Entrar como Carlos"**.
-2. Haz clic en el botón rojo **"🚨 Probar acceso no autorizado a planta de Ana"**.
-3. El frontend muestra la notificación de rechazo con **HTTP 403 Forbidden (`ACCESO_DENEGADO`)**, evidenciando que la regla de propiedad reside en el núcleo de dominio: `planta.pertenece_a(usuario_id)`.
+1. Inicia sesión como Carlos (`carlos@matera.edu.co` / `clave123`).
+2. En "Mis plantas", en **"Probar acceso a otra planta por su id"**, escribe `planta-01` (es de Ana) y pulsa **Consultar**.
+3. El front muestra **"Acceso denegado (403)"**. El token de Carlos es válido; quien lo rechaza es la regla de negocio del dominio (`planta.pertenece_a(usuario_id)` en `matera/dominio/casos_uso/propiedad.py`).
 
 ### Demostración 4: Verificación de la Prueba de Cambio (Invarianza del Dominio)
 Para demostrar al profesor que el commit del sensor ESP32 no modificó el dominio:
