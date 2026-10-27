@@ -1,15 +1,12 @@
 """
 Adaptador de Entrada: Controlador REST para la Interfaz Web, Auth y Consulta de Plantas (R1, R5, R6, R7).
-Traduce HTTP a llamadas a los puertos de entrada y los objetos del dominio a JSON.
-Cada endpoint recibe solo el puerto que necesita.
+Solo rutas: cada una lee la petición (peticion_http.py), llama a su puerto de entrada
+y devuelve el resultado en JSON (serializacion.py). Los errores los traduce errores_http.py.
 """
-import re
-from typing import Any, Dict
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 
+from matera.adaptadores.entrada import peticion_http
 from matera.adaptadores.entrada.seguridad import VerificadorTokenPort, requiere_usuario
-from matera.dominio.excepciones import ParametroInvalidoError
-from matera.dominio.modelo import PARAMETROS_SOPORTADOS
 from matera.adaptadores.entrada.serializacion import (
     diagnostico_a_json,
     especie_a_json,
@@ -30,9 +27,6 @@ from matera.dominio.puertos.entrada import (
 )
 
 
-_ID_DISPOSITIVO_VALIDO = re.compile(r"[A-Za-z0-9_-]{1,40}")
-
-
 def crear_api_front_blueprint(
     validar_lectura: ValidarLecturaPort,
     consultar_especies: ConsultarEspeciesPort,
@@ -50,14 +44,6 @@ def crear_api_front_blueprint(
     """
     api_bp = Blueprint("api_front", __name__, url_prefix="/api")
 
-    def _parse_float(campo: str, valor: Any) -> float:
-        if isinstance(valor, bool):
-            raise ParametroInvalidoError(campo, f"El valor de '{campo}' no es un número válido.")
-        try:
-            return float(valor)
-        except (ValueError, TypeError):
-            raise ParametroInvalidoError(campo, f"El valor de '{campo}' no es un número válido.")
-
     # -------------------------------------------------------------------------
     # R1: Endpoints compatibles con Fase 1 (/api/v1/...)
     # -------------------------------------------------------------------------
@@ -69,24 +55,10 @@ def crear_api_front_blueprint(
         Exige JWT de usuario (R7). El usuario_id no se usa: el diagnóstico manual
         no depende de quién lo pida, pero solo usuarios con sesión pueden pedirlo.
         """
-        if not request.is_json:
-            raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON válido.")
-
-        datos: Dict[str, Any] = request.get_json(silent=True) or {}
-
-        especie_raw = datos.get("especie")
-        if not isinstance(especie_raw, str) or not especie_raw.strip():
-            raise ParametroInvalidoError("especie", "El parámetro 'especie' es obligatorio y debe ser un texto no vacío.")
-
-        valores: Dict[str, float] = {}
-        for campo in PARAMETROS_SOPORTADOS:
-            if campo not in datos or datos[campo] is None:
-                raise ParametroInvalidoError(campo, f"El parámetro '{campo}' es obligatorio.")
-            valores[campo] = _parse_float(campo, datos[campo])
-
+        datos = peticion_http.cuerpo_json()
         diagnostico = validar_lectura.validar(
-            especie=especie_raw.strip().lower(),
-            valores=valores,
+            especie=peticion_http.texto(datos, "especie").lower(),
+            valores=peticion_http.valores_medidos(datos),
         )
         return jsonify(diagnostico_a_json(diagnostico)), 200
 
@@ -107,22 +79,12 @@ def crear_api_front_blueprint(
         """
         POST /api/auth/registro (R7).
         """
-        if not request.is_json:
-            raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON.")
-
-        datos = request.get_json(silent=True) or {}
-        nombre = datos.get("nombre", "").strip()
-        email = datos.get("email", "").strip()
-        password = datos.get("password", "")
-
-        if not nombre:
-            raise ParametroInvalidoError("nombre", "El nombre es obligatorio.")
-        if not email or "@" not in email:
-            raise ParametroInvalidoError("email", "El correo electrónico es inválido.")
-        if not password or len(password) < 6:
-            raise ParametroInvalidoError("password", "La contraseña debe tener al menos 6 caracteres.")
-
-        sesion = autenticar.registrar_usuario(nombre=nombre, email=email, password=password)
+        datos = peticion_http.cuerpo_json()
+        sesion = autenticar.registrar_usuario(
+            nombre=peticion_http.texto(datos, "nombre"),
+            email=peticion_http.correo(datos),
+            password=peticion_http.contrasena_nueva(datos),
+        )
         return jsonify({"mensaje": "Usuario registrado exitosamente.", **sesion_a_json(sesion)}), 201
 
     @api_bp.route("/auth/login", methods=["POST"])
@@ -130,19 +92,11 @@ def crear_api_front_blueprint(
         """
         POST /api/auth/login (R7).
         """
-        if not request.is_json:
-            raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON.")
-
-        datos = request.get_json(silent=True) or {}
-        email = datos.get("email", "").strip()
-        password = datos.get("password", "")
-
-        if not email:
-            raise ParametroInvalidoError("email", "El correo es obligatorio.")
-        if not password:
-            raise ParametroInvalidoError("password", "La contraseña es obligatoria.")
-
-        sesion = autenticar.iniciar_sesion(email=email, password=password)
+        datos = peticion_http.cuerpo_json()
+        sesion = autenticar.iniciar_sesion(
+            email=peticion_http.texto(datos, "email"),
+            password=peticion_http.texto(datos, "password", recortar=False),
+        )
         return jsonify({"mensaje": "Sesión iniciada correctamente.", **sesion_a_json(sesion)}), 200
 
     # -------------------------------------------------------------------------
@@ -166,24 +120,13 @@ def crear_api_front_blueprint(
         El usuario autenticado registra una planta y la vincula a un dispositivo.
         La respuesta trae el token del dispositivo, que se le entrega al ESP32 o al simulador.
         """
-        if not request.is_json:
-            raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON.")
-        datos: Dict[str, Any] = request.get_json(silent=True) or {}
-
-        campos: Dict[str, str] = {}
-        for campo in ("nombre", "especie", "dispositivo_id"):
-            valor = datos.get(campo)
-            if not isinstance(valor, str) or not valor.strip():
-                raise ParametroInvalidoError(campo, f"El campo '{campo}' es obligatorio y debe ser texto.")
-            campos[campo] = valor.strip()
-
-        if not _ID_DISPOSITIVO_VALIDO.fullmatch(campos["dispositivo_id"]):
-            raise ParametroInvalidoError(
-                "dispositivo_id",
-                "El id del dispositivo solo admite letras, números, guiones y guion bajo (máx. 40).",
-            )
-
-        registrada = registrar_planta.registrar_planta(usuario_id=usuario_id, **campos)
+        datos = peticion_http.cuerpo_json()
+        registrada = registrar_planta.registrar_planta(
+            usuario_id=usuario_id,
+            nombre=peticion_http.texto(datos, "nombre"),
+            especie=peticion_http.texto(datos, "especie"),
+            dispositivo_id=peticion_http.id_dispositivo(datos),
+        )
         return jsonify({
             "planta": planta_a_json(registrada.planta),
             "token_dispositivo": registrada.token_dispositivo,
@@ -217,7 +160,7 @@ def crear_api_front_blueprint(
         GET /api/plantas/{id}/historial (R5, R6, R7).
         Retorna la lista de lecturas históricas de la planta.
         """
-        limite = request.args.get("limite", default=20, type=int)
+        limite = peticion_http.limite_de_consulta()
         historial = consultar_historial.consultar_historial(
             usuario_id=usuario_id,
             planta_id=planta_id,

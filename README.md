@@ -24,7 +24,7 @@ Las dependencias apuntan hacia adentro: los adaptadores conocen los puertos y el
   - `validador.py`: `ValidadorDeEstado`, que clasifica cada parámetro (BAJO, OPTIMO, ALTO) y deriva el estado global: 0 desviaciones da SALUDABLE, 1 da EN_RIESGO y 2 o más da CRITICO.
   - `casos_uso/`: un caso de uso por puerto de entrada. `casos_uso/propiedad.py` tiene la regla "un usuario solo ve sus plantas".
   - `puertos/entrada.py` y `puertos/salida.py`: los contratos los define el dominio.
-- **Adaptadores de entrada (`matera/adaptadores/entrada/`)**: traducen HTTP a llamadas a los puertos y los objetos del dominio a JSON (`serializacion.py`). `seguridad.py` verifica el token antes del caso de uso, a través de `VerificadorTokenPort`, implementado con PyJWT en `verificador_jwt.py`.
+- **Adaptadores de entrada (`matera/adaptadores/entrada/`)**: los controladores (`api_front.py`, `api_dispositivos.py`) solo tienen rutas: leen la petición con `peticion_http.py` (cuerpo JSON, textos, números, marca de tiempo), llaman al puerto y devuelven JSON con `serializacion.py`. `errores_http.py` traduce cada excepción a una respuesta JSON uniforme, incluidos los errores propios de Flask (405, 415…). `seguridad.py` verifica el token antes del caso de uso, a través de `VerificadorTokenPort`, implementado con PyJWT en `verificador_jwt.py`.
 - **Adaptadores de salida (`matera/adaptadores/salida/`)**: un adaptador por puerto (CSV, SQLite, PyJWT, werkzeug).
 - **Composición (`matera/app.py`)**: el único lugar donde se decide qué adaptador va con qué puerto.
 
@@ -171,6 +171,7 @@ pytest
 | `tests/test_dominio.py` | Reglas y casos de uso **sin servidor, sin archivos y sin base de datos**, con los dobles de `tests/fakes.py` |
 | `tests/test_adaptadores_salida.py` | CSV y SQLite devuelven las mismas especies, el historial, los usuarios, las plantas y el hasher |
 | `tests/test_api_endpoints.py` | Diagnóstico manual y catálogo (R1) y errores uniformes |
+| `tests/test_errores_http.py` | Todo error sale en JSON (también 405) y una petición mal armada es 400, nunca 500 |
 | `tests/test_api_dispositivos.py` | Endpoint del dispositivo: token, suplantación, lecturas válidas e inválidas |
 | `tests/test_api_plantas.py` | Flujo completo: usuario → planta → token → lectura → estado |
 | `tests/test_seguridad_jwt.py` | Login, tokens inválidos o vencidos, alcances y planta ajena (403) |
@@ -217,7 +218,7 @@ SmartPlantBase/
 │   │   ├── casos_uso/             # Un caso de uso por puerto de entrada
 │   │   └── puertos/               # entrada.py y salida.py
 │   └── adaptadores/
-│       ├── entrada/               # api_front, api_dispositivos, seguridad, verificador_jwt, serializacion
+│       ├── entrada/               # api_front, api_dispositivos, peticion_http, serializacion, errores_http, seguridad, verificador_jwt
 │       └── salida/                # tabla_csv, tabla_bd, historial_bd, plantas_bd, usuarios_bd,
 │                                  # sqlite_bd, emisor_jwt, hasher_werkzeug
 ├── frontend/

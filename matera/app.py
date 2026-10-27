@@ -8,12 +8,12 @@ import os
 import secrets
 from pathlib import Path
 from typing import Optional
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
-from werkzeug.exceptions import HTTPException
 
 from matera.adaptadores.entrada.api_dispositivos import crear_api_dispositivos_blueprint
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
+from matera.adaptadores.entrada.errores_http import registrar_manejadores_error
 from matera.adaptadores.entrada.verificador_jwt import JwtVerificadorToken
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
@@ -23,16 +23,6 @@ from matera.adaptadores.salida.sqlite_bd import inicializar_bd
 from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
 from matera.adaptadores.salida.usuarios_bd import BdUsuariosAdapter
-from matera.dominio.excepciones import (
-    AccesoNoAutorizadoPlantaError,
-    CredencialesInvalidasError,
-    DispositivoNoEncontradoError,
-    DispositivoYaVinculadoError,
-    EspecieNoSoportadaError,
-    ParametroInvalidoError,
-    PlantaNoEncontradaError,
-    UsuarioYaExisteError,
-)
 from matera.dominio.casos_uso import (
     AutenticarUsuario,
     ConsultarEspecies,
@@ -44,109 +34,6 @@ from matera.dominio.casos_uso import (
     RegistrarPlanta,
     ValidarLectura,
 )
-
-
-def registrar_manejadores_error(app: Flask) -> None:
-    """Registra los manejadores de error centralizados en la aplicación Flask."""
-
-    @app.errorhandler(EspecieNoSoportadaError)
-    def manejar_especie_no_soportada(error: EspecieNoSoportadaError):
-        cuerpo = {
-            "error": "ESPECIE_NO_SOPORTADA",
-            "mensaje": str(error),
-            "detalle": {"especie": error.especie},
-        }
-        return jsonify(cuerpo), 404
-
-    @app.errorhandler(ParametroInvalidoError)
-    def manejar_parametro_invalido(error: ParametroInvalidoError):
-        cuerpo = {
-            "error": "PARAMETRO_INVALIDO",
-            "mensaje": str(error),
-            "detalle": {"campo": error.campo},
-        }
-        return jsonify(cuerpo), 400
-
-    @app.errorhandler(PlantaNoEncontradaError)
-    def manejar_planta_no_encontrada(error: PlantaNoEncontradaError):
-        cuerpo = {
-            "error": "PLANTA_NO_ENCONTRADA",
-            "mensaje": str(error),
-            "detalle": {"planta_id": error.planta_id},
-        }
-        return jsonify(cuerpo), 404
-
-    @app.errorhandler(DispositivoNoEncontradoError)
-    def manejar_dispositivo_no_encontrado(error: DispositivoNoEncontradoError):
-        cuerpo = {
-            "error": "DISPOSITIVO_NO_ENCONTRADO",
-            "mensaje": str(error),
-            "detalle": {"dispositivo_id": error.dispositivo_id},
-        }
-        return jsonify(cuerpo), 404
-
-    @app.errorhandler(DispositivoYaVinculadoError)
-    def manejar_dispositivo_ya_vinculado(error: DispositivoYaVinculadoError):
-        cuerpo = {
-            "error": "DISPOSITIVO_YA_VINCULADO",
-            "mensaje": str(error),
-            "detalle": {"dispositivo_id": error.dispositivo_id},
-        }
-        return jsonify(cuerpo), 409
-
-    @app.errorhandler(AccesoNoAutorizadoPlantaError)
-    def manejar_acceso_no_autorizado(error: AccesoNoAutorizadoPlantaError):
-        cuerpo = {
-            "error": "ACCESO_DENEGADO",
-            "mensaje": str(error),
-            "detalle": {"usuario_id": error.usuario_id, "planta_id": error.planta_id},
-        }
-        return jsonify(cuerpo), 403
-
-    @app.errorhandler(UsuarioYaExisteError)
-    def manejar_usuario_ya_existe(error: UsuarioYaExisteError):
-        cuerpo = {
-            "error": "USUARIO_YA_EXISTE",
-            "mensaje": str(error),
-            "detalle": {"email": error.email},
-        }
-        return jsonify(cuerpo), 409
-
-    @app.errorhandler(CredencialesInvalidasError)
-    def manejar_credenciales_invalidas(error: CredencialesInvalidasError):
-        cuerpo = {
-            "error": "CREDENCIALES_INVALIDAS",
-            "mensaje": str(error),
-            "detalle": {},
-        }
-        return jsonify(cuerpo), 401
-
-    @app.errorhandler(400)
-    def manejar_bad_request_http(error):
-        cuerpo = {
-            "error": "PARAMETRO_INVALIDO",
-            "mensaje": getattr(error, "description", "Solicitud incorrecta."),
-            "detalle": {"campo": "body"},
-        }
-        return jsonify(cuerpo), 400
-
-    @app.errorhandler(404)
-    def manejar_not_found_http(error):
-        cuerpo = {
-            "error": "RECURSO_NO_ENCONTRADO",
-            "mensaje": "El recurso o endpoint solicitado no existe.",
-            "detalle": {"ruta": getattr(error, "description", "")},
-        }
-        return jsonify(cuerpo), 404
-
-    @app.errorhandler(500)
-    def manejar_error_servidor_http(error):
-        app.logger.exception("Error interno no controlado", exc_info=error)
-        cuerpo = {
-            "error": "ERROR_INTERNO_SERVIDOR",
-            "mensaje": "Ocurrió un error inesperado al procesar la solicitud.",
-        }
-        return jsonify(cuerpo), 500
 
 
 def _clave_temporal() -> str:
@@ -237,7 +124,7 @@ def create_app(
         verificador=verificador_token,
     ))
 
-    # 7. Manejadores de error
+    # 7. Traducción de errores a JSON (adaptadores/entrada/errores_http.py)
     registrar_manejadores_error(app)
 
     return app
