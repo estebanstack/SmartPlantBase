@@ -15,11 +15,8 @@ class BdPlantasAdapter(PlantasPort):
     def __init__(self, ruta_bd: str | Path):
         self._ruta = str(ruta_bd)
 
-    def _conectar(self) -> sqlite3.Connection:
-        return conectar(self._ruta)
-
     def _buscar_una(self, condicion: str, valor: str) -> Optional[Planta]:
-        with self._conectar() as con:
+        with conectar(self._ruta) as con:
             fila = con.execute(f"SELECT {_COLUMNAS} FROM plantas WHERE {condicion} = ?", (valor,)).fetchone()
         return self._a_planta(fila) if fila else None
 
@@ -30,14 +27,14 @@ class BdPlantasAdapter(PlantasPort):
         return self._buscar_una("dispositivo_id", dispositivo_id)
 
     def listar_plantas_por_usuario(self, usuario_id: str) -> List[Planta]:
-        with self._conectar() as con:
+        with conectar(self._ruta) as con:
             filas = con.execute(
                 f"SELECT {_COLUMNAS} FROM plantas WHERE usuario_id = ? ORDER BY id ASC", (usuario_id,)
             ).fetchall()
         return [self._a_planta(f) for f in filas]
 
     def guardar_planta(self, planta: Planta) -> None:
-        with self._conectar() as con:
+        with conectar(self._ruta) as con:
             con.execute(
                 f"INSERT INTO plantas ({_COLUMNAS}) VALUES (?, ?, ?, ?, ?)",
                 (planta.id, planta.nombre, planta.especie, planta.usuario_id, planta.dispositivo_id),

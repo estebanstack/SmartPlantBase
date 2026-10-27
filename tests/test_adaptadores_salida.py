@@ -4,6 +4,7 @@ Verifica la intercambiabilidad de TablaReferenciaPort (CSV vs SQLite)
 y la persistencia de HistorialLecturasPort, UsuariosPort y PlantasPort en SQLite.
 """
 from pathlib import Path
+import sqlite3
 import tempfile
 import pytest
 
@@ -190,3 +191,19 @@ def test_hasher_werkzeug_usa_sal_y_verifica():
     assert hash_1 != hash_2  # sal aleatoria
     assert hasher.verificar("clave123", hash_1)
     assert not hasher.verificar("otra", hash_1)
+
+
+def test_conectar_cierra_la_conexion_al_salir_del_with(temp_db):
+    with conectar(temp_db) as con:
+        con.execute("SELECT 1")
+    with pytest.raises(sqlite3.ProgrammingError):
+        con.execute("SELECT 1")  # ya está cerrada
+
+
+def test_conectar_deshace_los_cambios_si_hay_un_error(temp_db):
+    with pytest.raises(RuntimeError):
+        with conectar(temp_db) as con:
+            con.execute("DELETE FROM especies")
+            raise RuntimeError("falla a mitad de la operación")
+    with conectar(temp_db) as con:
+        assert con.execute("SELECT COUNT(*) FROM especies").fetchone()[0] == 5

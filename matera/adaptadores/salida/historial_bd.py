@@ -18,11 +18,8 @@ class BdHistorialLecturasAdapter(HistorialLecturasPort):
     def __init__(self, ruta_bd: str | Path):
         self._ruta = str(ruta_bd)
 
-    def _conectar(self) -> sqlite3.Connection:
-        return conectar(self._ruta)
-
     def guardar_lectura(self, lectura: Lectura, diagnostico: Diagnostico) -> None:
-        with self._conectar() as con:
+        with conectar(self._ruta) as con:
             con.execute(
                 """
                 INSERT INTO historial_lecturas
@@ -44,7 +41,7 @@ class BdHistorialLecturasAdapter(HistorialLecturasPort):
         return registros[0].lectura if registros else None
 
     def obtener_historial(self, planta_id: str, limite: int = 20) -> List[RegistroLectura]:
-        with self._conectar() as con:
+        with conectar(self._ruta) as con:
             filas = con.execute(
                 """
                 SELECT planta_id, dispositivo_id, especie, valores, estado_planta, marca_tiempo
