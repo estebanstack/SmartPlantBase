@@ -14,7 +14,8 @@ SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn,
 - **Adaptadores de Entrada (`matera/adaptadores/entrada/`):**
   - `api_front.py`: Controlador REST para clientes web y autenticación.
   - `api_dispositivos.py`: Controlador REST para sensores IoT (`POST /api/dispositivos/{id}/lecturas`).
-  - `seguridad_jwt.py`: Decoradores que verifican firma, alcance (`scope: usuario` vs `dispositivo`) y entregan identidades limpias al caso de uso.
+  - `seguridad.py`: Decoradores `@requiere_usuario` y `@requiere_dispositivo`. Revisan el alcance del token (`usuario` vs `dispositivo`) a través de `VerificadorTokenPort` y entregan al caso de uso solo el id ya verificado.
+  - `verificador_jwt.py`: Implementa `VerificadorTokenPort` con `PyJWT` (firma y expiración).
 - **Adaptadores de Salida (`matera/adaptadores/salida/`):**
   - `tabla_csv.py`: Lector de referencia botánica desde CSV (`CsvTablaReferenciaAdapter`).
   - `tabla_bd.py`: Lector de referencia botánica desde SQLite (`BdTablaReferenciaAdapter`).
@@ -33,11 +34,18 @@ SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn,
    pip install -r requirements.txt
    ```
 
-2. **Ejecutar la suite completa de pruebas:**
+2. **Configurar la clave de los tokens:** copiar `.env.example` como `.env` y poner una `JWT_SECRET` larga y aleatoria.
+   ```bash
+   cp .env.example .env
+   python -c "import secrets; print(secrets.token_urlsafe(32))"   # genera una clave para pegar en .env
+   ```
+   Si no se configura, el backend arranca con una clave temporal y los tokens dejan de servir al reiniciarlo.
+
+3. **Ejecutar la suite completa de pruebas:**
    ```bash
    pytest
    ```
-   *Ejecuta 66 pruebas unitarias y de integración en menos de 0.3 segundos con 100% de éxito.*
+   *Ejecuta las pruebas unitarias del dominio y las de integración de los adaptadores.*
 
 ---
 
@@ -113,7 +121,9 @@ SmartPlantBase/
 │   │   ├── entrada/
 │   │   │   ├── api_front.py          # Endpoints web REST (/api/v1/..., /api/auth/...)
 │   │   │   ├── api_dispositivos.py   # Endpoint sensor: POST /api/dispositivos/{id}/lecturas
-│   │   │   └── seguridad_jwt.py      # Decoradores @requiere_jwt_usuario y @requiere_jwt_dispositivo
+│   │   │   ├── seguridad.py          # Decoradores @requiere_usuario / @requiere_dispositivo + VerificadorTokenPort
+│   │   │   ├── verificador_jwt.py    # Verificación de tokens con PyJWT
+│   │   │   └── serializacion.py      # Objetos del dominio -> JSON
 │   │   └── salida/
 │   │       ├── tabla_csv.py          # Adaptador CSV de TablaReferenciaPort
 │   │       ├── tabla_bd.py           # Adaptador SQLite de TablaReferenciaPort

@@ -3,7 +3,9 @@ Punto Único de Composición y Ensamblado Hexagonal (Composition Root).
 Instancia adaptadores de salida, inyecta dependencias en los servicios del dominio
 y conecta los adaptadores de entrada (Blueprints HTTP).
 """
+import logging
 import os
+import secrets
 from pathlib import Path
 from typing import Optional
 from flask import Flask, jsonify
@@ -12,6 +14,7 @@ from werkzeug.exceptions import HTTPException
 
 from matera.adaptadores.entrada.api_dispositivos import crear_api_dispositivos_blueprint
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
+from matera.adaptadores.entrada.verificador_jwt import JwtVerificadorToken
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
 from matera.adaptadores.salida.historial_bd import BdHistorialYPlantasAdapter
@@ -131,10 +134,23 @@ def registrar_manejadores_error(app: Flask) -> None:
         return jsonify(cuerpo), 500
 
 
+def _clave_temporal() -> str:
+    """
+    Si no se configuró JWT_SECRET, se inventa una clave al azar para esta ejecución.
+    Sirve para probar, pero los tokens dejan de valer cuando se reinicia el servidor.
+    """
+    logging.getLogger(__name__).warning(
+        "JWT_SECRET no está configurada: se usa una clave temporal. "
+        "Copie .env.example a .env y defina JWT_SECRET para que los tokens sobrevivan a un reinicio."
+    )
+    return secrets.token_urlsafe(32)
+
+
 def create_app(
     driver_tabla: Optional[str] = None,
     ruta_csv: Optional[str] = None,
     ruta_bd: Optional[str] = None,
+    clave_jwt: Optional[str] = None,
 ) -> Flask:
     """
     Fábrica de la aplicación Flask en Arquitectura Hexagonal.
@@ -164,9 +180,10 @@ def create_app(
     usuarios = persistencia_bd
     plantas = persistencia_bd
 
-    # 4. Adaptador de emisión de tokens JWT (R7)
-    clave_jwt = os.getenv("JWT_SECRET", "matera-secret-key-arquitectura-2026-segura")
+    # 4. Tokens JWT (R7): la misma clave firma (emisor, salida) y verifica (verificador, entrada)
+    clave_jwt = clave_jwt or os.getenv("JWT_SECRET") or _clave_temporal()
     emisor_token = JwtEmisorTokenAdapter(secret_key=clave_jwt)
+    verificador_token = JwtVerificadorToken(secret_key=clave_jwt)
 
     # 4b. Adaptador de hash de contraseñas (R7)
     hasher = WerkzeugHasherAdapter()
@@ -188,11 +205,11 @@ def create_app(
         consultar_historial=consultar_historial,
         listar_plantas=listar_plantas,
         autenticar=autenticar,
-        emisor_jwt=emisor_token,
+        verificador=verificador_token,
     ))
     app.register_blueprint(crear_api_dispositivos_blueprint(
         puerto_registro=registrar_lectura,
-        emisor_jwt=emisor_token,
+        verificador=verificador_token,
     ))
 
     # 7. Manejadores de error

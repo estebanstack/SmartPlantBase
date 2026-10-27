@@ -50,12 +50,12 @@
   <text x="35" y="224" class="card-text">Alimentado por simulador_esp32.py (R3)</text>
   <text x="35" y="238" class="card-text">Exige token con scope="dispositivo"</text>
 
-  <!-- Card 3: seguridad_jwt.py (Perímetro) -->
+  <!-- Card 3: seguridad.py (Perímetro) -->
   <rect x="25" y="256" width="210" height="75" class="bg-sec" />
-  <text x="35" y="274" class="card-title" fill="#991b1b">seguridad_jwt.py (Borde)</text>
-  <text x="35" y="288" class="card-text">• Decoradores: @requiere_jwt_usuario</text>
-  <text x="35" y="302" class="card-text">  y @requiere_jwt_dispositivo</text>
-  <text x="35" y="316" class="card-text">• Valida firma y segrega por 'scope'</text>
+  <text x="35" y="274" class="card-title" fill="#991b1b">seguridad.py (Borde)</text>
+  <text x="35" y="288" class="card-text">• Decoradores: @requiere_usuario</text>
+  <text x="35" y="302" class="card-text">  y @requiere_dispositivo</text>
+  <text x="35" y="316" class="card-text">• Firma: verificador_jwt.py (PyJWT)</text>
 
   <!-- Card 4: Tests unitarios -->
   <rect x="25" y="340" width="210" height="55" class="bg-card" />

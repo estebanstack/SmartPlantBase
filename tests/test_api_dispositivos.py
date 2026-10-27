@@ -15,6 +15,8 @@ import pytest
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.app import create_app
 
+CLAVE_PRUEBAS = "clave-solo-para-pruebas-con-32-bytes-o-mas"
+
 
 @pytest.fixture
 def temp_db():
@@ -26,12 +28,12 @@ def temp_db():
 
 @pytest.fixture
 def emisor_jwt():
-    return JwtEmisorTokenAdapter(secret_key="matera-secret-key-arquitectura-2026-segura")
+    return JwtEmisorTokenAdapter(secret_key=CLAVE_PRUEBAS)
 
 
 @pytest.fixture
 def app(temp_db):
-    test_app = create_app(ruta_bd=temp_db)
+    test_app = create_app(ruta_bd=temp_db, clave_jwt=CLAVE_PRUEBAS)
     test_app.config["TESTING"] = True
     return test_app
 

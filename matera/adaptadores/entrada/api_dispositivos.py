@@ -3,12 +3,11 @@ Adaptador de Entrada: Controlador REST para Dispositivos y Sensores ESP32 (R2).
 Expone el endpoint POST /api/dispositivos/{id}/lecturas para recibir telemetría ambiental periódica.
 Se conecta exclusivamente al puerto de entrada RegistrarLecturaPort sin tocar el dominio.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from flask import Blueprint, jsonify, request
 
 from matera.adaptadores.entrada.serializacion import diagnostico_a_json
-from matera.adaptadores.entrada.seguridad_jwt import requiere_jwt_dispositivo
-from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
+from matera.adaptadores.entrada.seguridad import VerificadorTokenPort, requiere_dispositivo
 from matera.dominio.excepciones import ParametroInvalidoError
 from matera.dominio.modelo import PARAMETROS_SOPORTADOS
 from matera.dominio.puertos.entrada import RegistrarLecturaPort
@@ -16,7 +15,7 @@ from matera.dominio.puertos.entrada import RegistrarLecturaPort
 
 def crear_api_dispositivos_blueprint(
     puerto_registro: RegistrarLecturaPort,
-    emisor_jwt: Optional[JwtEmisorTokenAdapter] = None,
+    verificador: VerificadorTokenPort,
 ) -> Blueprint:
     """
     Fábrica del Blueprint REST para dispositivos IoT / sensores (ESP32).
@@ -31,13 +30,8 @@ def crear_api_dispositivos_blueprint(
         except (ValueError, TypeError):
             raise ParametroInvalidoError(campo, f"El valor de '{campo}' no es un número válido.")
 
-    def _verificador_dispositivo(f):
-        if emisor_jwt:
-            return requiere_jwt_dispositivo(emisor_jwt)(f)
-        return f
-
     @api_bp.route("/dispositivos/<id>/lecturas", methods=["POST"])
-    @_verificador_dispositivo
+    @requiere_dispositivo(verificador)
     def registrar_lectura(id: str):
         """
         POST /api/dispositivos/{id}/lecturas (R2).

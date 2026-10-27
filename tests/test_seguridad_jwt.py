@@ -2,7 +2,7 @@
 Pruebas de Seguridad con JWT y Control de Acceso (R7).
 Verifica:
 1. Emisión de tokens de usuario y dispositivo con PyJWT fuera del dominio.
-2. Validación en el adaptador de entrada (seguridad_jwt.py).
+2. Validación en el adaptador de entrada (seguridad.py + verificador_jwt.py).
 3. Regla de negocio en el dominio: un usuario sólo puede consultar el estado e historial de sus propias plantas (403).
 4. Rechazo de tokens con alcance incorrecto (ej. token de dispositivo usado en endpoint de usuario).
 """
@@ -12,6 +12,8 @@ import pytest
 
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.app import create_app
+
+CLAVE_PRUEBAS = "clave-solo-para-pruebas-con-32-bytes-o-mas"
 
 
 @pytest.fixture
@@ -24,7 +26,7 @@ def temp_db():
 
 @pytest.fixture
 def app(temp_db):
-    test_app = create_app(ruta_bd=temp_db)
+    test_app = create_app(ruta_bd=temp_db, clave_jwt=CLAVE_PRUEBAS)
     test_app.config["TESTING"] = True
     return test_app
 
@@ -37,7 +39,7 @@ def client(app):
 
 @pytest.fixture
 def emisor_jwt():
-    return JwtEmisorTokenAdapter(secret_key="matera-secret-key-arquitectura-2026-segura")
+    return JwtEmisorTokenAdapter(secret_key=CLAVE_PRUEBAS)
 
 
 def test_flujo_registro_y_login_usuario(client):
@@ -150,3 +152,26 @@ def test_token_de_dispositivo_rechazado_en_endpoints_de_usuario(client, emisor_j
     datos = resp.get_json()
     assert datos["error"] == "ACCESO_DENEGADO"
     assert datos["detalle"]["scope_presente"] == "dispositivo"
+
+
+def test_token_firmado_con_otra_clave_es_rechazado(client):
+    """Un token con firma válida pero de otra clave (por ejemplo, fabricado por fuera) no entra."""
+    falso = JwtEmisorTokenAdapter(secret_key="otra-clave-distinta-tambien-de-32-bytes").emitir_token_usuario("usr-ana", "ana@matera.edu.co")
+    resp = client.get("/api/plantas", headers={"Authorization": f"Bearer {falso}"})
+    assert resp.status_code == 401
+    assert resp.get_json()["error"] == "TOKEN_INVALIDO"
+
+
+def test_token_expirado_es_rechazado(client):
+    """Un token vencido devuelve TOKEN_EXPIRADO."""
+    from datetime import datetime, timedelta, timezone
+    import jwt
+
+    vencido = jwt.encode(
+        {"sub": "usr-ana", "scope": "usuario", "exp": datetime.now(timezone.utc) - timedelta(minutes=1)},
+        CLAVE_PRUEBAS,
+        algorithm="HS256",
+    )
+    resp = client.get("/api/plantas", headers={"Authorization": f"Bearer {vencido}"})
+    assert resp.status_code == 401
+    assert resp.get_json()["error"] == "TOKEN_EXPIRADO"

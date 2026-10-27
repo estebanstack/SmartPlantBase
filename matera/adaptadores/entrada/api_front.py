@@ -3,11 +3,10 @@ Adaptador de Entrada: Controlador REST para la Interfaz Web, Auth y Consulta de 
 Traduce HTTP a llamadas a los puertos de entrada y los objetos del dominio a JSON.
 Cada endpoint recibe solo el puerto que necesita.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from flask import Blueprint, jsonify, request
 
-from matera.adaptadores.entrada.seguridad_jwt import requiere_jwt_usuario
-from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
+from matera.adaptadores.entrada.seguridad import VerificadorTokenPort, requiere_usuario
 from matera.dominio.excepciones import ParametroInvalidoError
 from matera.dominio.modelo import PARAMETROS_SOPORTADOS
 from matera.adaptadores.entrada.serializacion import (
@@ -35,7 +34,7 @@ def crear_api_front_blueprint(
     consultar_historial: ConsultarHistorialPort,
     listar_plantas: ListarPlantasPort,
     autenticar: AutenticarUsuarioPort,
-    emisor_jwt: Optional[JwtEmisorTokenAdapter] = None,
+    verificador: VerificadorTokenPort,
 ) -> Blueprint:
     """
     Fábrica del Blueprint REST para clientes web / frontend.
@@ -137,13 +136,8 @@ def crear_api_front_blueprint(
     # -------------------------------------------------------------------------
     # R5, R6, R7: Endpoints de Consulta de Plantas e Historial (/api/plantas/...)
     # -------------------------------------------------------------------------
-    def _verificador_usuario(f):
-        if emisor_jwt:
-            return requiere_jwt_usuario(emisor_jwt)(f)
-        return f
-
     @api_bp.route("/plantas", methods=["GET"])
-    @_verificador_usuario
+    @requiere_usuario(verificador)
     def obtener_plantas_usuario(usuario_id: str):
         """
         GET /api/plantas (R7).
@@ -153,7 +147,7 @@ def crear_api_front_blueprint(
         return jsonify([planta_a_json(p) for p in plantas]), 200
 
     @api_bp.route("/plantas/<planta_id>/estado", methods=["GET"])
-    @_verificador_usuario
+    @requiere_usuario(verificador)
     def consultar_estado_planta(planta_id: str, usuario_id: str):
         """
         GET /api/plantas/{id}/estado (R5, R6, R7).
@@ -164,7 +158,7 @@ def crear_api_front_blueprint(
         return jsonify(estado_actual_a_json(estado)), 200
 
     @api_bp.route("/plantas/<planta_id>/historial", methods=["GET"])
-    @_verificador_usuario
+    @requiere_usuario(verificador)
     def consultar_historial_planta(planta_id: str, usuario_id: str):
         """
         GET /api/plantas/{id}/historial (R5, R6, R7).
