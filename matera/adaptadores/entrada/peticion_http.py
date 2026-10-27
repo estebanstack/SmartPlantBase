@@ -7,7 +7,7 @@ dominio nunca recibe un request ni un dict crudo.
 """
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from flask import request
@@ -73,18 +73,24 @@ def valores_medidos(datos: Dict[str, Any]) -> Dict[str, float]:
 
 
 def marca_tiempo(datos: Dict[str, Any]) -> str:
-    """Marca de tiempo obligatoria en ISO-8601 (ej. 2026-10-27T15:00:00Z)."""
+    """
+    Marca de tiempo obligatoria en ISO-8601 (ej. 2026-10-27T15:00:00Z o 2026-10-27T10:00:00-05:00).
+    Se normaliza a UTC con un formato fijo (AAAA-MM-DDTHH:MM:SSZ) para que el historial
+    se pueda ordenar por la hora de la medición. Si no trae zona horaria, se toma como UTC.
+    """
     valor = datos.get("marca_tiempo")
     if not isinstance(valor, str) or not valor.strip():
         raise ParametroInvalidoError("marca_tiempo", "La lectura debe traer su marca_tiempo (ISO-8601).")
     try:
-        # Python < 3.11 no acepta la "Z" final, por eso se cambia por +00:00 solo para validar
-        datetime.fromisoformat(valor.strip().replace("Z", "+00:00"))
+        # Python < 3.11 no acepta la "Z" final, por eso se cambia por +00:00
+        momento = datetime.fromisoformat(valor.strip().replace("Z", "+00:00"))
     except ValueError:
         raise ParametroInvalidoError(
             "marca_tiempo", f"La marca_tiempo '{valor}' no está en formato ISO-8601."
         )
-    return valor.strip()
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def id_dispositivo(datos: Dict[str, Any]) -> str:

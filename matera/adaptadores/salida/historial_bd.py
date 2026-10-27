@@ -2,6 +2,9 @@
 Adaptador de Salida: historial de lecturas en SQLite (R5).
 Implementa HistorialLecturasPort. Los valores medidos se guardan como JSON en una
 sola columna, así un parámetro nuevo (por ejemplo pH) no obliga a cambiar la tabla.
+El historial se ordena por la hora de la medición (marca_tiempo, que el borde de entrada
+deja en UTC con formato fijo), no por el orden de llegada: una lectura atrasada no
+reemplaza a la última.
 """
 import json
 import sqlite3
@@ -47,7 +50,7 @@ class BdHistorialLecturasAdapter(HistorialLecturasPort):
                 SELECT planta_id, dispositivo_id, especie, valores, estado_planta, marca_tiempo
                 FROM historial_lecturas
                 WHERE planta_id = ?
-                ORDER BY id DESC
+                ORDER BY marca_tiempo DESC, id DESC
                 LIMIT ?
                 """,
                 (planta_id, limite),

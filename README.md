@@ -139,7 +139,7 @@ Todas las respuestas son JSON. Los errores tienen siempre la misma forma: `{"err
 | `POST /api/plantas` | Usuario | Registra una planta con su dispositivo y devuelve el `token_dispositivo` |
 | `POST /api/plantas/{id}/token-dispositivo` | Usuario (dueño) | Token nuevo para el dispositivo de la planta |
 | `GET /api/plantas/{id}/estado` | Usuario (dueño) | Última lectura y su diagnóstico |
-| `GET /api/plantas/{id}/historial?limite=20` | Usuario (dueño) | Lecturas guardadas, de la más reciente a la más antigua |
+| `GET /api/plantas/{id}/historial?limite=20` | Usuario (dueño) | Lecturas guardadas, de la más reciente a la más antigua según la hora de medición (`limite` entre 1 y 100) |
 | `POST /api/dispositivos/{id}/lecturas` | Dispositivo (el mismo `{id}`) | El ESP32 reporta una lectura |
 
 Cuerpo de una lectura del dispositivo:
@@ -147,6 +147,8 @@ Cuerpo de una lectura del dispositivo:
 { "dispositivo_id": "esp32-01", "marca_tiempo": "2026-10-27T15:00:00Z",
   "humedad": 34.2, "luz": 820, "temperatura": 22.4 }
 ```
+
+La `marca_tiempo` puede venir con cualquier zona horaria (`2026-10-27T10:00:00-05:00`); el backend la guarda en UTC (`2026-10-27T15:00:00Z`) y ordena el historial por ella, así una lectura que llega atrasada no reemplaza a la última.
 
 Códigos de error:
 

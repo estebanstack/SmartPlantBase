@@ -43,3 +43,4 @@ CREATE TABLE IF NOT EXISTS historial_lecturas (
 );
 
 CREATE INDEX IF NOT EXISTS idx_historial_planta ON historial_lecturas (planta_id, id);
+CREATE INDEX IF NOT EXISTS idx_historial_planta_marca ON historial_lecturas (planta_id, marca_tiempo);

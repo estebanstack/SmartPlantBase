@@ -189,3 +189,34 @@ def test_dispositivo_id_del_cuerpo_debe_coincidir_con_la_url(client, token_esp32
     )
     assert resp.status_code == 400
     assert resp.get_json()["detalle"]["campo"] == "dispositivo_id"
+
+
+def _enviar(client, token, marca, humedad=30.0):
+    return client.post(
+        "/api/dispositivos/esp32-01/lecturas",
+        json={"humedad": humedad, "luz": 500.0, "temperatura": 22.0, "marca_tiempo": marca},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+
+def _ultima_lectura_de_ana(client):
+    token_ana = client.post(
+        "/api/auth/login", json={"email": "ana@matera.edu.co", "password": "clave123"}
+    ).get_json()["token"]
+    estado = client.get("/api/plantas/planta-01/estado", headers={"Authorization": f"Bearer {token_ana}"})
+    return estado.get_json()["ultima_lectura"]
+
+
+def test_marca_de_tiempo_con_otra_zona_horaria_se_guarda_en_utc(client, token_esp32_01):
+    assert _enviar(client, token_esp32_01, "2026-10-26T12:00:00-05:00").status_code == 201
+    assert _ultima_lectura_de_ana(client)["marca_tiempo"] == "2026-10-26T17:00:00Z"
+
+
+def test_una_lectura_atrasada_no_reemplaza_a_la_ultima(client, token_esp32_01):
+    """La última lectura es la más reciente según cuándo se midió, no según cuándo llegó."""
+    assert _enviar(client, token_esp32_01, "2026-10-26T17:10:00Z", humedad=40.0).status_code == 201
+    assert _enviar(client, token_esp32_01, "2026-10-26T17:00:00Z", humedad=10.0).status_code == 201
+
+    ultima = _ultima_lectura_de_ana(client)
+    assert ultima["marca_tiempo"] == "2026-10-26T17:10:00Z"
+    assert ultima["valores"]["humedad"] == 40.0
