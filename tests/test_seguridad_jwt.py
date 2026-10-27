@@ -128,6 +128,9 @@ def test_regla_propiedad_planta_propia_vs_ajena(client):
     assert resp_carlos.status_code == 403
     datos_carlos = resp_carlos.get_json()
     assert datos_carlos["error"] == "ACCESO_DENEGADO"
+    # La respuesta no revela ids de usuario (ni el de Ana ni el de Carlos)
+    assert "usuario_id" not in datos_carlos["detalle"]
+    assert "usr-" not in datos_carlos["mensaje"]
 
     # 5. Carlos consulta planta-02 (suya) -> 200 OK
     resp_carlos_ok = client.get("/api/plantas/planta-02/estado", headers=headers_carlos)

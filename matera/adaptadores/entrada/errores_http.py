@@ -64,9 +64,10 @@ def registrar_manejadores_error(app: Flask) -> None:
 
     @app.errorhandler(AccesoNoAutorizadoPlantaError)
     def acceso_no_autorizado(error: AccesoNoAutorizadoPlantaError):
+        # No se devuelven ids de usuario: basta con decir qué planta se negó
         return _respuesta(
-            "ACCESO_DENEGADO", str(error), 403,
-            {"usuario_id": error.usuario_id, "planta_id": error.planta_id},
+            "ACCESO_DENEGADO", "No tiene autorización para acceder a esta planta.", 403,
+            {"planta_id": error.planta_id},
         )
 
     @app.errorhandler(UsuarioYaExisteError)
