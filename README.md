@@ -66,11 +66,29 @@ La base de datos SQLite autogenera datos semilla para demostrar de inmediato en 
    ```
    Abre en el navegador: `http://localhost:8000`.  
    Haz clic en **"👤 Entrar como Ana"**. Observarás el panel de telemetría en vivo con polling automático cada 3 segundos.
-3. **Terminal 3 (Simulador ESP32):**
+3. **Terminal 3 (Simulador ESP32):** el simulador necesita el token de su dispositivo, y ese token lo entrega el backend.
+   Para la planta de Ana (`planta-01`, dispositivo `esp32-01`) se pide así:
    ```bash
-   python simulador_esp32.py --intervalo 2
+   # 1) Iniciar sesión como Ana y guardar su token de usuario
+   TOKEN_ANA=$(curl -s -X POST http://localhost:5000/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"ana@matera.edu.co","password":"clave123"}' | python -c "import sys,json;print(json.load(sys.stdin)['token'])")
+
+   # 2) Pedir el token del dispositivo de su planta
+   TOKEN_DISPOSITIVO=$(curl -s -X POST http://localhost:5000/api/plantas/planta-01/token-dispositivo \
+     -H "Authorization: Bearer $TOKEN_ANA" | python -c "import sys,json;print(json.load(sys.stdin)['token_dispositivo'])")
+
+   # 3) Arrancar el simulador con ese token
+   python simulador_esp32.py --dispositivo-id esp32-01 --token "$TOKEN_DISPOSITIVO" --intervalo 3
    ```
-   Observa cómo el frontend refleja en tiempo real las lecturas saludables (`SALUDABLE`), las alertas de sequía/calor (`EN_RIESGO` / `CRITICO`) y cómo los datos corruptos son rechazados con `400 Bad Request` sin detener el sistema.
+   Si se registra una planta nueva con `POST /api/plantas`, la respuesta ya trae su `token_dispositivo`.
+
+   Qué se ve:
+   - Cada lectura imprime los valores y la respuesta del backend. La tierra se va secando, la luz sigue el ciclo del día y de vez en cuando "riegan".
+   - Las lecturas válidas responden **201** con el estado (`SALUDABLE`, `EN_RIESGO` o `CRITICO`) y el front lo refleja solo.
+   - Alrededor del 15 % de las lecturas salen dañadas a propósito: valor imposible o no numérico y campo faltante (**400**), o sin token (**401**). No entran al historial.
+
+   Opciones útiles: `--prob-error 0` (sin datos inválidos), `--minutos-por-lectura 10` (día más lento), `--semilla 4` (repetir la misma secuencia), `--iteraciones 20` (parar solo).
 
 ### Demostración 2: Conmutación de CSV a Base de Datos por configuración (R4)
 Reinicia el backend cambiando el driver por variable de entorno:
