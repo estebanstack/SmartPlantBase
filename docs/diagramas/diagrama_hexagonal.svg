@@ -69,7 +69,7 @@
 
   <!-- Sub-block: Puertos de Entrada -->
   <rect x="295" y="52" width="330" height="72" class="bg-port-in" />
-  <text x="305" y="68" class="badge-in">PUERTOS DE ENTRADA (matera/puertos/entrada.py)</text>
+  <text x="305" y="68" class="badge-in">PUERTOS DE ENTRADA (matera/dominio/puertos/entrada.py)</text>
   <text x="305" y="84" class="card-text">• ValidarLecturaPort (R1: validación catálogo botánico)</text>
   <text x="305" y="97" class="card-text">• RegistrarLecturaPort (R2: telemetría sensor y evaluación)</text>
   <text x="305" y="110" class="card-text">• ConsultarEstadoPort (R5, R6) · AutenticarUsuarioPort (R7)</text>
@@ -88,7 +88,7 @@
 
   <!-- Sub-block: Puertos de Salida -->
   <rect x="295" y="292" width="330" height="100" class="bg-port-out" />
-  <text x="305" y="308" class="badge-out">PUERTOS DE SALIDA (matera/puertos/salida.py)</text>
+  <text x="305" y="308" class="badge-out">PUERTOS DE SALIDA (matera/dominio/puertos/salida.py)</text>
   <text x="305" y="324" class="card-text">• TablaReferenciaPort (R4: consulta rangos óptimos)</text>
   <text x="305" y="338" class="card-text">• HistorialLecturasPort (R5: persistencia y última lectura)</text>
   <text x="305" y="352" class="card-text">• UsuariosPlantasPort (R7: consulta y relación planta-usuario)</text>

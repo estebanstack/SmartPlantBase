@@ -9,7 +9,7 @@ from matera.adaptadores.entrada.seguridad_jwt import requiere_jwt_usuario
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.dominio.excepciones import ParametroInvalidoError
 from matera.dominio.modelo import PARAMETROS_SOPORTADOS
-from matera.puertos.entrada import (
+from matera.dominio.puertos.entrada import (
     AutenticarUsuarioPort,
     ConsultarEstadoPort,
     ValidarLecturaPort,

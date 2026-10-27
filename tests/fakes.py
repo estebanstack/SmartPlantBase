@@ -12,7 +12,7 @@ from matera.dominio.modelo import (
     RangoParametro,
     Usuario,
 )
-from matera.puertos.salida import (
+from matera.dominio.puertos.salida import (
     EmisorTokenPort,
     HistorialLecturasPort,
     TablaReferenciaPort,

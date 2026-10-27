@@ -27,13 +27,13 @@ from matera.dominio.modelo import (
     RangoParametro,
     Usuario,
 )
-from matera.puertos.entrada import (
+from matera.dominio.puertos.entrada import (
     AutenticarUsuarioPort,
     ConsultarEstadoPort,
     RegistrarLecturaPort,
     ValidarLecturaPort,
 )
-from matera.puertos.salida import (
+from matera.dominio.puertos.salida import (
     EmisorTokenPort,
     HistorialLecturasPort,
     TablaReferenciaPort,

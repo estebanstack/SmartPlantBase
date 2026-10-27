@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 import jwt
 
-from matera.puertos.salida import EmisorTokenPort
+from matera.dominio.puertos.salida import EmisorTokenPort
 
 
 class JwtEmisorTokenAdapter(EmisorTokenPort):

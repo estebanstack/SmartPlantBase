@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from matera.adaptadores.salida.tabla_bd import inicializar_bd
 from matera.dominio.modelo import Diagnostico, Lectura, Planta, Usuario
-from matera.puertos.salida import HistorialLecturasPort, UsuariosPlantasPort
+from matera.dominio.puertos.salida import HistorialLecturasPort, UsuariosPlantasPort
 
 
 class BdHistorialLecturasAdapter(HistorialLecturasPort):

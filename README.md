@@ -9,8 +9,8 @@
 
 SmartPlantBase implementa el patrón **Puertos y Adaptadores (Alistair Cockburn, 2005)**:
 - **Núcleo de Dominio (`matera/dominio/`):** Entidades (`Lectura`, `Especie`, `Planta`, `Usuario`, `Diagnostico`), reglas botánicas (`ValidadorDeEstado`) y excepciones puras. **0 dependencias de frameworks, HTTP, bases de datos o librerías de seguridad.**
-- **Puertos de Entrada (`matera/puertos/entrada.py`):** Casos de uso definidos mediante interfaces abstractas (`ValidarLecturaPort`, `RegistrarLecturaPort`, `ConsultarEstadoPort`, `AutenticarUsuarioPort`).
-- **Puertos de Salida (`matera/puertos/salida.py`):** Contratos abstractos requeridos por el dominio (`TablaReferenciaPort`, `HistorialLecturasPort`, `UsuariosPlantasPort`, `EmisorTokenPort`).
+- **Puertos de Entrada (`matera/dominio/puertos/entrada.py`):** Casos de uso definidos mediante interfaces abstractas (`ValidarLecturaPort`, `RegistrarLecturaPort`, `ConsultarEstadoPort`, `AutenticarUsuarioPort`).
+- **Puertos de Salida (`matera/dominio/puertos/salida.py`):** Contratos abstractos requeridos por el dominio (`TablaReferenciaPort`, `HistorialLecturasPort`, `UsuariosPlantasPort`, `EmisorTokenPort`).
 - **Adaptadores de Entrada (`matera/adaptadores/entrada/`):**
   - `api_front.py`: Controlador REST para clientes web y autenticación.
   - `api_dispositivos.py`: Controlador REST para sensores IoT (`POST /api/dispositivos/{id}/lecturas`).
@@ -81,7 +81,7 @@ Para demostrar al profesor que el commit del sensor ESP32 no modificó el domini
 ```bash
 git show 8c4b6d8 --stat
 ```
-Verás que solo se crearon `api_dispositivos.py`, `simulador_esp32.py`, su prueba y la línea de registro en `matera/app.py`. **Cero (0) archivos modificados en `matera/dominio/` y `matera/puertos/`.**
+Verás que solo se crearon `api_dispositivos.py`, `simulador_esp32.py`, su prueba y la línea de registro en `matera/app.py`. **Cero (0) archivos modificados en `matera/dominio/` y `matera/dominio/puertos/`.**
 
 ---
 
@@ -104,10 +104,10 @@ SmartPlantBase/
 │   ├── dominio/
 │   │   ├── modelo.py                 # Entidades puras: Lectura, Especie, Planta, Usuario
 │   │   ├── validador.py              # ValidadorDeEstado y ServicioMateraDominio
-│   │   └── excepciones.py            # Excepciones de negocio (0 dependencias)
-│   ├── puertos/
-│   │   ├── entrada.py                # ValidarLecturaPort, RegistrarLecturaPort, etc.
-│   │   └── salida.py                 # TablaReferenciaPort, HistorialLecturasPort, etc.
+│   │   ├── excepciones.py            # Excepciones de negocio (0 dependencias)
+│   │   └── puertos/                  # Los puertos los define el dominio
+│   │       ├── entrada.py            # ValidarLecturaPort, RegistrarLecturaPort, etc.
+│   │       └── salida.py             # TablaReferenciaPort, HistorialLecturasPort, etc.
 │   ├── adaptadores/
 │   │   ├── entrada/
 │   │   │   ├── api_front.py          # Endpoints web REST (/api/v1/..., /api/auth/...)

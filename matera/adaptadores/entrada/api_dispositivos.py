@@ -10,7 +10,7 @@ from matera.adaptadores.entrada.seguridad_jwt import requiere_jwt_dispositivo
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.dominio.excepciones import ParametroInvalidoError
 from matera.dominio.modelo import PARAMETROS_SOPORTADOS
-from matera.puertos.entrada import RegistrarLecturaPort
+from matera.dominio.puertos.entrada import RegistrarLecturaPort
 
 
 def crear_api_dispositivos_blueprint(

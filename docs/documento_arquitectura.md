@@ -265,7 +265,7 @@ La Figura 1 ilustra la vista de referencia de nuestra arquitectura, reflejando c
   <text x="365" y="30" class="title-core">Núcleo de Dominio y Puertos</text>
 
   <rect x="272" y="42" width="371" height="66" class="bg-port-in" />
-  <text x="282" y="56" class="badge-in">PUERTOS DE ENTRADA (matera/puertos/entrada.py)</text>
+  <text x="282" y="56" class="badge-in">PUERTOS DE ENTRADA (matera/dominio/puertos/entrada.py)</text>
   <text x="282" y="71" class="card-text">• ValidarLecturaPort (R1: validación manual)</text>
   <text x="282" y="84" class="card-text">• RegistrarLecturaPort (R2: telemetría sensor y evaluación)</text>
   <text x="282" y="97" class="card-text">• ConsultarEstadoPort (R5, R6) · AutenticarUsuarioPort (R7)</text>
@@ -282,7 +282,7 @@ La Figura 1 ilustra la vista de referencia de nuestra arquitectura, reflejando c
   <text x="282" y="246" class="card-text" fill="#64748b">Excepciones botánicas: AccesoNoAutorizado, EspecieNoSoportada...</text>
 
   <rect x="272" y="262" width="371" height="92" class="bg-port-out" />
-  <text x="282" y="277" class="badge-out">PUERTOS DE SALIDA (matera/puertos/salida.py)</text>
+  <text x="282" y="277" class="badge-out">PUERTOS DE SALIDA (matera/dominio/puertos/salida.py)</text>
   <text x="282" y="292" class="card-text">• TablaReferenciaPort (R4: consulta rangos de especies)</text>
   <text x="282" y="305" class="card-text">• HistorialLecturasPort (R5: persistencia y última lectura)</text>
   <text x="282" y="318" class="card-text">• UsuariosPlantasPort (R7: consulta y relación planta-usuario)</text>
@@ -344,14 +344,14 @@ Los puertos desacoplan el núcleo de las tecnologías externas mediante contrato
 
 | Puerto | Dirección | Archivo de Interfaz | Adaptador Concreto | Responsabilidad en el Negocio |
 | :--- | :---: | :--- | :--- | :--- |
-| **ValidarLecturaPort** | Entrada | `matera/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_front.py`)* | Evalúa lecturas enviadas de forma manual desde la interfaz web contra los rangos de la especie (R1). |
-| **RegistrarLecturaPort** | Entrada | `matera/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_dispositivos.py`)* | Procesa la telemetría enviada por el ESP32 (R2), calcula el diagnóstico botánico y solicita la persistencia histórica (R5). |
-| **ConsultarEstadoPort** | Entrada | `matera/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_front.py`)* | Recupera el estado actual y el historial de una planta, aplicando la validación de propiedad de usuario (R5, R6, R7). |
-| **AutenticarUsuarioPort** | Entrada | `matera/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_front.py`)* | Autentica credenciales de usuarios, registra cuentas nuevas y coordina la generación de tokens de sesión (R7). |
-| **TablaReferenciaPort** | Salida | `matera/puertos/salida.py` | CsvTablaReferenciaAdapter<br>BdTablaReferenciaAdapter | Proporciona las especies botánicas y sus rangos óptimos. Es intercambiable por configuración (CSV o SQLite) (R4). |
-| **HistorialLecturasPort** | Salida | `matera/puertos/salida.py` | BdHistorialYPlantasAdapter | Persiste cada lectura recibida junto con su diagnóstico y consulta el registro más reciente por planta (R5). |
-| **UsuariosPlantasPort** | Salida | `matera/puertos/salida.py` | BdHistorialYPlantasAdapter | Almacena y consulta la información de usuarios, plantas registradas y la relación entre sensor y planta (R7). |
-| **EmisorTokenPort** | Salida | `matera/puertos/salida.py` | JwtEmisorTokenAdapter | Firma tokens criptográficos JWT segregados para usuarios y dispositivos mediante el algoritmo HS256 (R7). |
+| **ValidarLecturaPort** | Entrada | `matera/dominio/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_front.py`)* | Evalúa lecturas enviadas de forma manual desde la interfaz web contra los rangos de la especie (R1). |
+| **RegistrarLecturaPort** | Entrada | `matera/dominio/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_dispositivos.py`)* | Procesa la telemetría enviada por el ESP32 (R2), calcula el diagnóstico botánico y solicita la persistencia histórica (R5). |
+| **ConsultarEstadoPort** | Entrada | `matera/dominio/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_front.py`)* | Recupera el estado actual y el historial de una planta, aplicando la validación de propiedad de usuario (R5, R6, R7). |
+| **AutenticarUsuarioPort** | Entrada | `matera/dominio/puertos/entrada.py` | ServicioMateraDominio *(consumido por `api_front.py`)* | Autentica credenciales de usuarios, registra cuentas nuevas y coordina la generación de tokens de sesión (R7). |
+| **TablaReferenciaPort** | Salida | `matera/dominio/puertos/salida.py` | CsvTablaReferenciaAdapter<br>BdTablaReferenciaAdapter | Proporciona las especies botánicas y sus rangos óptimos. Es intercambiable por configuración (CSV o SQLite) (R4). |
+| **HistorialLecturasPort** | Salida | `matera/dominio/puertos/salida.py` | BdHistorialYPlantasAdapter | Persiste cada lectura recibida junto con su diagnóstico y consulta el registro más reciente por planta (R5). |
+| **UsuariosPlantasPort** | Salida | `matera/dominio/puertos/salida.py` | BdHistorialYPlantasAdapter | Almacena y consulta la información de usuarios, plantas registradas y la relación entre sensor y planta (R7). |
+| **EmisorTokenPort** | Salida | `matera/dominio/puertos/salida.py` | JwtEmisorTokenAdapter | Firma tokens criptográficos JWT segregados para usuarios y dispositivos mediante el algoritmo HS256 (R7). |
 
 ## 3. Manejo de Seguridad, Alcances de JWT y Regla de Propiedad
 
@@ -377,7 +377,7 @@ La estructura de paquetes y clases del proyecto aplica los principios de diseño
 
 - **Inversión de Dependencias (DIP):** El núcleo de dominio no depende de bibliotecas externas ni de adaptadores concretos; depende de abstracciones. `ServicioMateraDominio` recibe la interfaz `TablaReferenciaPort`, por lo que desconoce si las especies provienen de un archivo de texto o de SQLite:
 ```python
-# matera/puertos/salida.py
+# matera/dominio/puertos/salida.py
 class TablaReferenciaPort(ABC):
     @abstractmethod
     def obtener_por_nombre(self, nombre: str) -> Optional[Especie]:
@@ -408,7 +408,7 @@ Para verificar que la arquitectura permite integrar nuevos canales sin perturbar
 ### Comprobación de Invarianza del Dominio
 Al auditar los cambios introducidos entre dicho commit y su predecesor sobre las carpetas de negocio:
 ```bash
-git diff 8c4b6d8~1 8c4b6d8 -- matera/dominio/ matera/puertos/
+git diff 8c4b6d8~1 8c4b6d8 -- matera/dominio/ matera/dominio/puertos/
 ```
 El resultado no reporta ninguna diferencia. Los archivos `modelo.py`, `validador.py`, `excepciones.py`, `entrada.py` y `salida.py` no sufrieron alteraciones. 
 
@@ -447,7 +447,7 @@ diagnostico = self._puerto_registro.registrar(
 
 ### Componentes que Permanecen Intactos
 - **Núcleo de dominio (`matera/dominio/*`):** `modelo.py`, `validador.py` y `excepciones.py` no requieren ningún cambio. El evaluador botánico desconoce por completo si las lecturas provinieron de un paquete TCP, un socket MQTT o una petición HTTP.
-- **Puertos de entrada y salida (`matera/puertos/*`):** `RegistrarLecturaPort` conserva su firma agnóstica (`dispositivo_id: str`, `valores: Mapping`, `marca_tiempo: str`), ya que fue diseñado pensando en el caso de uso y no en el protocolo.
+- **Puertos de entrada y salida (`matera/dominio/puertos/*`):** `RegistrarLecturaPort` conserva su firma agnóstica (`dispositivo_id: str`, `valores: Mapping`, `marca_tiempo: str`), ya que fue diseñado pensando en el caso de uso y no en el protocolo.
 - **Adaptadores de salida (`matera/adaptadores/salida/*`):** La persistencia del historial en SQLite (`historial_bd.py`) y la consulta de rangos de especies (`tabla_csv.py` / `tabla_bd.py`) se ejecutan exactamente igual.
 
 ---

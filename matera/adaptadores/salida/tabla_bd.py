@@ -12,7 +12,7 @@ from matera.dominio.modelo import (
     Especie,
     RangoParametro,
 )
-from matera.puertos.salida import TablaReferenciaPort
+from matera.dominio.puertos.salida import TablaReferenciaPort
 
 
 def inicializar_bd(ruta_bd: str | Path) -> None:
