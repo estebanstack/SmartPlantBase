@@ -24,6 +24,7 @@ from matera.dominio.excepciones import (
     AccesoNoAutorizadoPlantaError,
     CredencialesInvalidasError,
     DispositivoNoEncontradoError,
+    DispositivoYaVinculadoError,
     EspecieNoSoportadaError,
     ParametroInvalidoError,
     PlantaNoEncontradaError,
@@ -34,8 +35,10 @@ from matera.dominio.casos_uso import (
     ConsultarEspecies,
     ConsultarEstado,
     ConsultarHistorial,
+    EmitirTokenDispositivo,
     ListarPlantas,
     RegistrarLectura,
+    RegistrarPlanta,
     ValidarLectura,
 )
 
@@ -78,6 +81,15 @@ def registrar_manejadores_error(app: Flask) -> None:
             "detalle": {"dispositivo_id": error.dispositivo_id},
         }
         return jsonify(cuerpo), 404
+
+    @app.errorhandler(DispositivoYaVinculadoError)
+    def manejar_dispositivo_ya_vinculado(error: DispositivoYaVinculadoError):
+        cuerpo = {
+            "error": "DISPOSITIVO_YA_VINCULADO",
+            "mensaje": str(error),
+            "detalle": {"dispositivo_id": error.dispositivo_id},
+        }
+        return jsonify(cuerpo), 409
 
     @app.errorhandler(AccesoNoAutorizadoPlantaError)
     def manejar_acceso_no_autorizado(error: AccesoNoAutorizadoPlantaError):
@@ -195,6 +207,8 @@ def create_app(
     consultar_estado = ConsultarEstado(tabla_referencia, plantas, historial)
     consultar_historial = ConsultarHistorial(plantas, historial)
     listar_plantas = ListarPlantas(plantas)
+    registrar_planta = RegistrarPlanta(tabla_referencia, plantas, emisor_token)
+    emitir_token_dispositivo = EmitirTokenDispositivo(plantas, emisor_token)
     autenticar = AutenticarUsuario(usuarios, hasher, emisor_token)
 
     # 6. Adaptadores de entrada (Blueprints): cada endpoint recibe solo su puerto de entrada
@@ -204,6 +218,8 @@ def create_app(
         consultar_estado=consultar_estado,
         consultar_historial=consultar_historial,
         listar_plantas=listar_plantas,
+        registrar_planta=registrar_planta,
+        emitir_token_dispositivo=emitir_token_dispositivo,
         autenticar=autenticar,
         verificador=verificador_token,
     ))

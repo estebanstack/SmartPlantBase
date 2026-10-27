@@ -58,3 +58,10 @@ class CredencialesInvalidasError(DominioError):
     def __init__(self, mensaje: str = "Credenciales de acceso inválidas."):
         super().__init__(mensaje)
         self.mensaje = mensaje
+
+
+class DispositivoYaVinculadoError(DominioError):
+    """Lanzada al registrar una planta con un dispositivo que ya está asociado a otra planta."""
+    def __init__(self, dispositivo_id: str):
+        super().__init__(f"El dispositivo '{dispositivo_id}' ya está vinculado a otra planta.")
+        self.dispositivo_id = dispositivo_id

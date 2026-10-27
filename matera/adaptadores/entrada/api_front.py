@@ -3,6 +3,7 @@ Adaptador de Entrada: Controlador REST para la Interfaz Web, Auth y Consulta de 
 Traduce HTTP a llamadas a los puertos de entrada y los objetos del dominio a JSON.
 Cada endpoint recibe solo el puerto que necesita.
 """
+import re
 from typing import Any, Dict
 from flask import Blueprint, jsonify, request
 
@@ -22,9 +23,14 @@ from matera.dominio.puertos.entrada import (
     ConsultarEspeciesPort,
     ConsultarEstadoPort,
     ConsultarHistorialPort,
+    EmitirTokenDispositivoPort,
     ListarPlantasPort,
+    RegistrarPlantaPort,
     ValidarLecturaPort,
 )
+
+
+_ID_DISPOSITIVO_VALIDO = re.compile(r"[A-Za-z0-9_-]{1,40}")
 
 
 def crear_api_front_blueprint(
@@ -33,6 +39,8 @@ def crear_api_front_blueprint(
     consultar_estado: ConsultarEstadoPort,
     consultar_historial: ConsultarHistorialPort,
     listar_plantas: ListarPlantasPort,
+    registrar_planta: RegistrarPlantaPort,
+    emitir_token_dispositivo: EmitirTokenDispositivoPort,
     autenticar: AutenticarUsuarioPort,
     verificador: VerificadorTokenPort,
 ) -> Blueprint:
@@ -145,6 +153,47 @@ def crear_api_front_blueprint(
         """
         plantas = listar_plantas.listar_plantas_usuario(usuario_id)
         return jsonify([planta_a_json(p) for p in plantas]), 200
+
+    @api_bp.route("/plantas", methods=["POST"])
+    @requiere_usuario(verificador)
+    def crear_planta(usuario_id: str):
+        """
+        POST /api/plantas (R7).
+        El usuario autenticado registra una planta y la vincula a un dispositivo.
+        La respuesta trae el token del dispositivo, que se le entrega al ESP32 o al simulador.
+        """
+        if not request.is_json:
+            raise ParametroInvalidoError("body", "El cuerpo de la solicitud debe ser un objeto JSON.")
+        datos: Dict[str, Any] = request.get_json(silent=True) or {}
+
+        campos: Dict[str, str] = {}
+        for campo in ("nombre", "especie", "dispositivo_id"):
+            valor = datos.get(campo)
+            if not isinstance(valor, str) or not valor.strip():
+                raise ParametroInvalidoError(campo, f"El campo '{campo}' es obligatorio y debe ser texto.")
+            campos[campo] = valor.strip()
+
+        if not _ID_DISPOSITIVO_VALIDO.fullmatch(campos["dispositivo_id"]):
+            raise ParametroInvalidoError(
+                "dispositivo_id",
+                "El id del dispositivo solo admite letras, números, guiones y guion bajo (máx. 40).",
+            )
+
+        registrada = registrar_planta.registrar_planta(usuario_id=usuario_id, **campos)
+        return jsonify({
+            "planta": planta_a_json(registrada.planta),
+            "token_dispositivo": registrada.token_dispositivo,
+        }), 201
+
+    @api_bp.route("/plantas/<planta_id>/token-dispositivo", methods=["POST"])
+    @requiere_usuario(verificador)
+    def generar_token_dispositivo(planta_id: str, usuario_id: str):
+        """
+        POST /api/plantas/{id}/token-dispositivo (R7).
+        El dueño de la planta obtiene un token nuevo para su dispositivo.
+        """
+        token = emitir_token_dispositivo.emitir_token_dispositivo(usuario_id=usuario_id, planta_id=planta_id)
+        return jsonify({"planta_id": planta_id, "token_dispositivo": token}), 200
 
     @api_bp.route("/plantas/<planta_id>/estado", methods=["GET"])
     @requiere_usuario(verificador)

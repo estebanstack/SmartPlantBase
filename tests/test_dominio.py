@@ -10,6 +10,7 @@ from matera.dominio.excepciones import (
     AccesoNoAutorizadoPlantaError,
     CredencialesInvalidasError,
     DispositivoNoEncontradoError,
+    DispositivoYaVinculadoError,
     EspecieNoSoportadaError,
     ParametroInvalidoError,
     PlantaNoEncontradaError,
@@ -27,8 +28,10 @@ from matera.dominio.casos_uso import (
     ConsultarEspecies,
     ConsultarEstado,
     ConsultarHistorial,
+    EmitirTokenDispositivo,
     ListarPlantas,
     RegistrarLectura,
+    RegistrarPlanta,
     ValidarLectura,
 )
 from matera.dominio.validador import ValidadorDeEstado
@@ -309,3 +312,44 @@ def test_registro_no_guarda_la_contrasena_en_texto_plano(fake_usuarios, fake_has
     assert guardado.password_hash != "secreta1"
     assert guardado.password_hash == fake_hasher.generar_hash("secreta1")
     assert sesion.usuario.id == guardado.id
+
+
+# -----------------------------------------------------------------------------
+# 4. Registro de plantas y token del dispositivo (R7)
+# -----------------------------------------------------------------------------
+
+def test_registrar_planta_la_guarda_y_devuelve_token(fake_tabla, fake_plantas, fake_emisor):
+    caso_uso = RegistrarPlanta(fake_tabla, fake_plantas, fake_emisor)
+
+    registrada = caso_uso.registrar_planta(
+        usuario_id="usr-leo", nombre="Helecho del baño", especie="Helecho", dispositivo_id="esp32-07"
+    )
+
+    assert registrada.planta.usuario_id == "usr-leo"
+    assert registrada.planta.especie == "helecho"
+    assert fake_plantas.obtener_planta_por_dispositivo("esp32-07") == registrada.planta
+    assert registrada.token_dispositivo == fake_emisor.emitir_token_dispositivo("esp32-07", registrada.planta.id)
+
+
+def test_registrar_planta_con_especie_desconocida_falla(fake_tabla, fake_plantas, fake_emisor):
+    caso_uso = RegistrarPlanta(fake_tabla, fake_plantas, fake_emisor)
+    with pytest.raises(EspecieNoSoportadaError):
+        caso_uso.registrar_planta("usr-leo", "Rosa", "rosa", "esp32-07")
+    assert fake_plantas.obtener_planta_por_dispositivo("esp32-07") is None
+
+
+def test_un_dispositivo_no_puede_vincularse_a_dos_plantas(fake_tabla, fake_plantas, fake_emisor):
+    # esp32-01 ya es de la planta de Ana (ver fixture fake_plantas)
+    caso_uso = RegistrarPlanta(fake_tabla, fake_plantas, fake_emisor)
+    with pytest.raises(DispositivoYaVinculadoError):
+        caso_uso.registrar_planta("usr-leo", "Otra", "sansevieria", "esp32-01")
+
+
+def test_token_de_dispositivo_solo_lo_pide_el_dueno(fake_plantas, fake_emisor):
+    caso_uso = EmitirTokenDispositivo(fake_plantas, fake_emisor)
+
+    token = caso_uso.emitir_token_dispositivo(usuario_id="usr-ana", planta_id="planta-01")
+    assert token == fake_emisor.emitir_token_dispositivo("esp32-01", "planta-01")
+
+    with pytest.raises(AccesoNoAutorizadoPlantaError):
+        caso_uso.emitir_token_dispositivo(usuario_id="usr-carlos", planta_id="planta-01")

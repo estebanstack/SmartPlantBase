@@ -11,6 +11,7 @@ from matera.dominio.modelo import (
     Especie,
     EstadoActualPlanta,
     Planta,
+    PlantaRegistrada,
     RegistroLectura,
     SesionUsuario,
 )
@@ -68,6 +69,24 @@ class ListarPlantasPort(ABC):
 
     @abstractmethod
     def listar_plantas_usuario(self, usuario_id: str) -> List[Planta]:
+        ...
+
+
+class RegistrarPlantaPort(ABC):
+    """R7: un usuario registra una planta suya y la vincula a un dispositivo."""
+
+    @abstractmethod
+    def registrar_planta(
+        self, usuario_id: str, nombre: str, especie: str, dispositivo_id: str
+    ) -> PlantaRegistrada:
+        ...
+
+
+class EmitirTokenDispositivoPort(ABC):
+    """R7: el dueño de una planta pide (otra vez) el token de su dispositivo."""
+
+    @abstractmethod
+    def emitir_token_dispositivo(self, usuario_id: str, planta_id: str) -> str:
         ...
 
 

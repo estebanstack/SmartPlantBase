@@ -193,3 +193,10 @@ class SesionUsuario:
     """Resultado de registrarse o iniciar sesión: el usuario y el token que se le emitió."""
     usuario: Usuario
     token: str
+
+
+@dataclass(frozen=True)
+class PlantaRegistrada:
+    """Resultado de registrar una planta: la planta y el token que debe grabarse en su dispositivo."""
+    planta: Planta
+    token_dispositivo: str
