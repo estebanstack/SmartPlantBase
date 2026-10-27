@@ -3,8 +3,8 @@ Entidades y Objetos de Valor del Dominio (Núcleo Hexagonal).
 Estructuras de datos puras (POPOs) e invariantes físicas del dominio botánico.
 0 dependencias de frameworks o infraestructura externa.
 """
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from types import MappingProxyType
 from typing import Dict, List, Mapping, Optional, Tuple
@@ -81,7 +81,6 @@ class Lectura:
     marca_tiempo: str = ""
     dispositivo_id: Optional[str] = None
     planta_id: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
 
     def __post_init__(self):
         if not isinstance(self.especie, str) or not self.especie.strip():
@@ -112,20 +111,15 @@ class Lectura:
 
         object.__setattr__(self, "valores", MappingProxyType(normalizados))
 
-        # Sincronización de marca de tiempo ISO-8601
+        # Si nadie dice cuándo se midió (diagnóstico manual), se usa el momento actual en UTC (ISO-8601)
         if not self.marca_tiempo:
-            marca = self.timestamp.isoformat() if self.timestamp else datetime.utcnow().isoformat()
-            object.__setattr__(self, "marca_tiempo", marca)
+            object.__setattr__(self, "marca_tiempo", datetime.now(timezone.utc).isoformat())
 
     def valor_de(self, nombre: str) -> float:
         """Devuelve el valor medido de un parámetro, o falla si no está presente."""
         if nombre not in self.valores:
             raise ParametroInvalidoError(nombre, f"La lectura no incluye el parámetro '{nombre}'.")
         return self.valores[nombre]
-
-
-# Alias para compatibilidad con nombres de Fase 1
-Medicion = Lectura
 
 
 @dataclass(frozen=True)

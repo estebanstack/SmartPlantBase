@@ -3,6 +3,7 @@ Adaptador de Entrada: Controlador REST para Dispositivos y Sensores ESP32 (R2).
 Expone el endpoint POST /api/dispositivos/{id}/lecturas para recibir telemetría ambiental periódica.
 Se conecta exclusivamente al puerto de entrada RegistrarLecturaPort sin tocar el dominio.
 """
+from datetime import datetime
 from typing import Any, Dict
 from flask import Blueprint, jsonify, request
 
@@ -30,6 +31,18 @@ def crear_api_dispositivos_blueprint(
         except (ValueError, TypeError):
             raise ParametroInvalidoError(campo, f"El valor de '{campo}' no es un número válido.")
 
+    def _parse_marca_tiempo(valor: Any) -> str:
+        if not isinstance(valor, str) or not valor.strip():
+            raise ParametroInvalidoError("marca_tiempo", "La lectura debe traer su marca_tiempo (ISO-8601).")
+        try:
+            # Python < 3.11 no acepta la "Z" final, por eso se cambia por +00:00 solo para validar
+            datetime.fromisoformat(valor.strip().replace("Z", "+00:00"))
+        except ValueError:
+            raise ParametroInvalidoError(
+                "marca_tiempo", f"La marca_tiempo '{valor}' no está en formato ISO-8601."
+            )
+        return valor.strip()
+
     @api_bp.route("/dispositivos/<id>/lecturas", methods=["POST"])
     @requiere_dispositivo(verificador)
     def registrar_lectura(id: str):
@@ -43,21 +56,27 @@ def crear_api_dispositivos_blueprint(
 
         datos: Dict[str, Any] = request.get_json(silent=True) or {}
 
-        # 1. Parseo y verificación de campos obligatorios
+        # 1. Cada lectura trae el id del dispositivo, la marca de tiempo y los valores (R2)
+        dispositivo_cuerpo = datos.get("dispositivo_id")
+        if dispositivo_cuerpo is not None and dispositivo_cuerpo != id:
+            raise ParametroInvalidoError(
+                "dispositivo_id", "El dispositivo_id del cuerpo no coincide con el de la URL."
+            )
+
         valores: Dict[str, float] = {}
         for campo in PARAMETROS_SOPORTADOS:
             if campo not in datos or datos[campo] is None:
                 raise ParametroInvalidoError(campo, f"El parámetro '{campo}' es obligatorio en la lectura.")
             valores[campo] = _parse_float(campo, datos[campo])
 
-        # 2. Marca de tiempo suministrada o inferida
-        marca_tiempo = datos.get("marca_tiempo") or datos.get("timestamp") or ""
+        # 2. Marca de tiempo obligatoria y en formato ISO-8601 (ej. 2026-10-27T15:00:00Z)
+        marca_tiempo = _parse_marca_tiempo(datos.get("marca_tiempo"))
 
         # 3. Invocación al puerto de entrada
         diagnostico = puerto_registro.registrar(
             dispositivo_id=id,
             valores=valores,
-            marca_tiempo=str(marca_tiempo),
+            marca_tiempo=marca_tiempo,
         )
 
         # 4. Respuesta 201 Created con diagnóstico calculado

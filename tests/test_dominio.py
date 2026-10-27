@@ -3,7 +3,7 @@ Pruebas unitarias puras del Núcleo de Dominio (Arquitectura Hexagonal).
 Ejercita las entidades, reglas de negocio y casos de uso (puertos de entrada)
 usando dobles en memoria (tests/fakes.py) sin tocar archivos, SQLite ni Flask.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 import pytest
 
 from matera.dominio.excepciones import (
@@ -88,15 +88,23 @@ def fake_hasher():
 # 1. Pruebas de Entidad Lectura e Invariantes Físicas
 # -----------------------------------------------------------------------------
 
-def test_lectura_incluye_timestamp_utc_y_marca_tiempo_por_defecto():
-    """Crítico para Commit 4: Lectura incluye timestamp: datetime y marca_tiempo ISO."""
+def test_lectura_sin_marca_de_tiempo_usa_la_hora_actual_en_utc():
     lectura = Lectura(
         especie="sansevieria",
         valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
     )
-    assert isinstance(lectura.timestamp, datetime)
-    assert isinstance(lectura.marca_tiempo, str)
-    assert len(lectura.marca_tiempo) > 10
+    marca = datetime.fromisoformat(lectura.marca_tiempo)
+    assert marca.tzinfo is not None
+    assert abs((datetime.now(timezone.utc) - marca).total_seconds()) < 5
+
+
+def test_lectura_conserva_la_marca_de_tiempo_del_dispositivo():
+    lectura = Lectura(
+        especie="sansevieria",
+        valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
+        marca_tiempo="2026-10-27T15:00:00+00:00",
+    )
+    assert lectura.marca_tiempo == "2026-10-27T15:00:00+00:00"
 
 
 def test_lectura_rechaza_humedad_negativa():

@@ -122,6 +122,7 @@ def test_dispositivo_reporte_fuera_de_rango_botanico(client, token_esp32_01):
         "humedad": 10.0,  # Sequía para Sansevieria (min 20%)
         "luz": 600.0,
         "temperatura": 22.0,
+        "marca_tiempo": "2026-10-26T17:05:00Z",
     }
 
     resp = client.post("/api/dispositivos/esp32-01/lecturas", json=payload, headers=headers)
@@ -138,6 +139,7 @@ def test_dispositivo_reporte_dato_fisicamente_imposible_rechazado(client, token_
         "humedad": 150.0,
         "luz": 600.0,
         "temperatura": 22.0,
+        "marca_tiempo": "2026-10-26T17:10:00Z",
     }
 
     resp = client.post("/api/dispositivos/esp32-01/lecturas", json=payload, headers=headers)
@@ -155,3 +157,35 @@ def test_dispositivo_reporte_campo_ausente_rechazado(client, token_esp32_01):
     resp = client.post("/api/dispositivos/esp32-01/lecturas", json=payload, headers=headers)
     assert resp.status_code == 400
     assert resp.get_json()["error"] == "PARAMETRO_INVALIDO"
+
+
+@pytest.mark.parametrize("marca", [None, "", "ayer a las 3", 123])
+def test_lectura_sin_marca_de_tiempo_valida_es_rechazada(client, token_esp32_01, marca):
+    """R2: cada lectura debe traer su marca de tiempo en ISO-8601."""
+    payload = {"humedad": 30.0, "luz": 500.0, "temperatura": 22.0}
+    if marca is not None:
+        payload["marca_tiempo"] = marca
+    resp = client.post(
+        "/api/dispositivos/esp32-01/lecturas",
+        json=payload,
+        headers={"Authorization": f"Bearer {token_esp32_01}"},
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["detalle"]["campo"] == "marca_tiempo"
+
+
+def test_dispositivo_id_del_cuerpo_debe_coincidir_con_la_url(client, token_esp32_01):
+    payload = {
+        "dispositivo_id": "esp32-99",
+        "humedad": 30.0,
+        "luz": 500.0,
+        "temperatura": 22.0,
+        "marca_tiempo": "2026-10-26T17:00:00Z",
+    }
+    resp = client.post(
+        "/api/dispositivos/esp32-01/lecturas",
+        json=payload,
+        headers={"Authorization": f"Bearer {token_esp32_01}"},
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["detalle"]["campo"] == "dispositivo_id"
