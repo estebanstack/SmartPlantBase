@@ -8,6 +8,7 @@ import os
 import secrets
 from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
 
@@ -59,6 +60,7 @@ def create_app(
     Fábrica de la aplicación Flask en Arquitectura Hexagonal.
     Ensambla adaptadores de salida y entrada alrededor del núcleo de dominio.
     """
+    load_dotenv()
     app = Flask(__name__)
     app.json.sort_keys = False
     CORS(app, resources={r"/api/*": {"origins": "*"}})
