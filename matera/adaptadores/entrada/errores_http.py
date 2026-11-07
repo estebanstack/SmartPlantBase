@@ -15,6 +15,8 @@ from matera.dominio.excepciones import (
     EspecieNoSoportadaError,
     ParametroInvalidoError,
     PlantaNoEncontradaError,
+    SesionQRInvalidaError,
+    SesionQRNoEncontradaError,
     UsuarioYaExisteError,
 )
 
@@ -77,6 +79,15 @@ def registrar_manejadores_error(app: Flask) -> None:
     @app.errorhandler(CredencialesInvalidasError)
     def credenciales_invalidas(error: CredencialesInvalidasError):
         return _respuesta("CREDENCIALES_INVALIDAS", str(error), 401)
+
+    @app.errorhandler(SesionQRNoEncontradaError)
+    def sesion_qr_no_encontrada(error: SesionQRNoEncontradaError):
+        return _respuesta("SESION_QR_NO_ENCONTRADA", str(error), 404, {"sesion_id": error.sesion_id})
+
+    @app.errorhandler(SesionQRInvalidaError)
+    def sesion_qr_invalida(error: SesionQRInvalidaError):
+        return _respuesta("SESION_QR_INVALIDA", str(error), 409)
+
 
     # --- Errores de Flask / HTTP --------------------------------------------
     @app.errorhandler(400)

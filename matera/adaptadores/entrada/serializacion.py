@@ -12,6 +12,7 @@ from matera.dominio.modelo import (
     Lectura,
     Planta,
     RegistroLectura,
+    SesionQR,
     SesionUsuario,
 )
 
@@ -87,3 +88,17 @@ def sesion_a_json(sesion: SesionUsuario) -> Dict[str, Any]:
             "email": sesion.usuario.email,
         },
     }
+
+
+def sesion_qr_a_json(sesion: SesionQR) -> Dict[str, Any]:
+    return {
+        "id": sesion.id,
+        "session_id": sesion.id,
+        "estado": sesion.estado.value,
+        "usuario_id": sesion.usuario_id,
+        "token": sesion.token,
+        "planta_id": sesion.planta_id,
+        "dispositivo_id": sesion.dispositivo_id,
+        "expira_en": sesion.expira_en.isoformat() if sesion.expira_en else None,
+    }
+

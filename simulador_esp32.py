@@ -21,7 +21,10 @@ Qué genera:
        - campo_faltante: la lectura llega sin uno de los tres valores
        - sin_token:      la petición sale sin el token del dispositivo
 
-Uso típico:
+Uso típico (vinculación automática por QR / WebSocket desde el navegador):
+  python simulador_esp32.py --dispositivo-id esp32-01 --intervalo 3
+
+También admite pasar el token directamente:
   python simulador_esp32.py --dispositivo-id esp32-01 --token <TOKEN> --intervalo 3
 """
 import argparse
@@ -141,6 +144,45 @@ def describir_respuesta(codigo: int, datos) -> str:
     return f"{codigo} · {datos}"
 
 
+def vincular_por_qr(url_base: str, dispositivo_id: str, sesion_qr: str = "", intervalo: float = 1.5) -> str:
+    """
+    Si no se pasó --token manualmente, abre una sesión QR en el backend para el dispositivo
+    y espera a que el usuario autorice la vinculación desde el panel WebSocket del navegador.
+    """
+    base = url_base.rstrip("/")
+    id_sesion = sesion_qr or dispositivo_id
+    codigo, datos = enviar(
+        f"{base}/api/auth/qr/generar",
+        {"session_id": id_sesion, "dispositivo_id": dispositivo_id},
+        token="",
+    )
+    if codigo == 201 and isinstance(datos, dict):
+        id_sesion = datos.get("id", id_sesion)
+
+    print(f"📱 Esperando vinculación QR/WebSocket para '{dispositivo_id}' (sesión: {id_sesion})...")
+    print("   En el navegador, selecciona tu planta y pulsa 'Vincular dispositivo (QR / WebSocket)'.")
+
+    url_consulta = f"{base}/api/auth/qr/{id_sesion}"
+    while True:
+        peticion = urllib.request.Request(url_consulta, method="GET")
+        try:
+            with urllib.request.urlopen(peticion, timeout=5.0) as resp:
+                info = json.loads(resp.read().decode("utf-8"))
+                if info.get("estado") == "AUTORIZADA" and info.get("token"):
+                    print(f"✅ Vinculación QR autorizada para '{dispositivo_id}'. Iniciando telemetría...")
+                    return info["token"]
+                if info.get("estado") == "EXPIRADA":
+                    # Renovar sesión QR si expiró esperando al usuario
+                    enviar(
+                        f"{base}/api/auth/qr/generar",
+                        {"session_id": id_sesion, "dispositivo_id": dispositivo_id},
+                        token="",
+                    )
+        except urllib.error.URLError:
+            pass
+        time.sleep(intervalo)
+
+
 def leer_argumentos(argv=None):
     parser = argparse.ArgumentParser(description="Simulador del ESP32 de la matera inteligente")
     parser.add_argument("--url", default=os.getenv("BACKEND_URL", "http://localhost:5000"),
@@ -148,7 +190,9 @@ def leer_argumentos(argv=None):
     parser.add_argument("--dispositivo-id", default=os.getenv("DISPOSITIVO_ID", "esp32-01"),
                         help="Id del dispositivo, el mismo con que se registró la planta")
     parser.add_argument("--token", default=os.getenv("TOKEN_DISPOSITIVO", ""),
-                        help="Token del dispositivo que entregó el backend al registrar la planta")
+                        help="Token del dispositivo (opcional: si se omite, se vincula por QR/WebSocket)")
+    parser.add_argument("--sesion-qr", default=os.getenv("SESION_QR", ""),
+                        help="Id de sesión QR para emparejar automáticamente desde el navegador")
     parser.add_argument("--intervalo", type=float, default=3.0,
                         help="Segundos entre lecturas (por defecto 3)")
     parser.add_argument("--iteraciones", type=int, default=0,
@@ -164,8 +208,6 @@ def leer_argumentos(argv=None):
     parser.add_argument("--semilla", type=int, default=None,
                         help="Semilla aleatoria para repetir exactamente la misma secuencia")
     args = parser.parse_args(argv)
-    if not args.token:
-        parser.error("falta el token del dispositivo: use --token o la variable TOKEN_DISPOSITIVO")
     if not 0 <= args.prob_error <= 1:
         parser.error("--prob-error debe estar entre 0 y 1")
     return args
@@ -173,6 +215,7 @@ def leer_argumentos(argv=None):
 
 def main(argv=None) -> None:
     args = leer_argumentos(argv)
+    token_activo = args.token or vincular_por_qr(args.url, args.dispositivo_id, args.sesion_qr)
     rng = random.Random(args.semilla)
     matera = MateraSimulada(rng, args.minutos_por_lectura, args.luz_maxima, args.humedad_inicial)
     endpoint = f"{args.url.rstrip('/')}/api/dispositivos/{args.dispositivo_id}/lecturas"
@@ -192,7 +235,8 @@ def main(argv=None) -> None:
         cuerpo = danar_lectura(lectura, tipo_error, rng) if tipo_error else dict(lectura)
         cuerpo["dispositivo_id"] = args.dispositivo_id
         cuerpo["marca_tiempo"] = datetime.now(timezone.utc).isoformat()
-        token = "" if tipo_error == "sin_token" else args.token
+        token = "" if tipo_error == "sin_token" else token_activo
+
 
         hora = (matera.reloj - timedelta(hours=5)).strftime("%H:%M")
         etiqueta = f"[inválida: {tipo_error}]" if tipo_error else ("[riego]" if matera.regada else "")

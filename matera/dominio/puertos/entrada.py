@@ -4,7 +4,7 @@ Cada puerto es una cosa que alguien de afuera (el front, un dispositivo, una pru
 le puede pedir al dominio. Cada uno lo implementa un caso de uso en matera/dominio/casos_uso/.
 """
 from abc import ABC, abstractmethod
-from typing import List, Mapping
+from typing import List, Mapping, Optional
 
 from matera.dominio.modelo import (
     Diagnostico,
@@ -13,6 +13,7 @@ from matera.dominio.modelo import (
     Planta,
     PlantaRegistrada,
     RegistroLectura,
+    SesionQR,
     SesionUsuario,
 )
 
@@ -100,3 +101,39 @@ class AutenticarUsuarioPort(ABC):
     @abstractmethod
     def iniciar_sesion(self, email: str, password: str) -> SesionUsuario:
         ...
+
+
+class GenerarSesionQRPort(ABC):
+    """Genera una sesión efímera QR en estado PENDIENTE para vinculación o autorización WebSocket."""
+
+    @abstractmethod
+    def generar_sesion_qr(
+        self,
+        sesion_id: Optional[str] = None,
+        dispositivo_id: Optional[str] = None,
+        planta_id: Optional[str] = None,
+    ) -> SesionQR:
+        ...
+
+
+class ConsultarSesionQRPort(ABC):
+    """Consulta el estado actual de una sesión QR y actualiza su expiración."""
+
+    @abstractmethod
+    def consultar_sesion_qr(self, sesion_id: str) -> SesionQR:
+        ...
+
+
+class AutorizarSesionQRPort(ABC):
+    """Autoriza una sesión QR (vinculando dispositivo/planta o entregando token) y notifica en tiempo real."""
+
+    @abstractmethod
+    def autorizar_sesion_qr(
+        self,
+        sesion_id: str,
+        usuario_id: str,
+        token: Optional[str] = None,
+        planta_id: Optional[str] = None,
+    ) -> SesionQR:
+        ...
+

@@ -65,3 +65,23 @@ class DispositivoYaVinculadoError(DominioError):
     def __init__(self, dispositivo_id: str):
         super().__init__(f"El dispositivo '{dispositivo_id}' ya está vinculado a otra planta.")
         self.dispositivo_id = dispositivo_id
+
+
+class SesionQRError(DominioError):
+    """Excepción base para errores relacionados con sesiones de vinculación/autenticación QR."""
+    pass
+
+
+class SesionQRNoEncontradaError(SesionQRError):
+    """Lanzada cuando se consulta o intenta autorizar una sesión QR que no existe."""
+    def __init__(self, sesion_id: str):
+        super().__init__(f"La sesión QR '{sesion_id}' no fue encontrada.")
+        self.sesion_id = sesion_id
+
+
+class SesionQRInvalidaError(SesionQRError):
+    """Lanzada cuando una sesión QR ha expirado o ya no se encuentra en estado PENDIENTE."""
+    def __init__(self, mensaje: str):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+

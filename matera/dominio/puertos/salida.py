@@ -12,6 +12,7 @@ from matera.dominio.modelo import (
     Lectura,
     Planta,
     RegistroLectura,
+    SesionQR,
     Usuario,
 )
 
@@ -104,3 +105,41 @@ class HasherContrasenaPort(ABC):
     @abstractmethod
     def verificar(self, password: str, password_hash: str) -> bool:
         ...
+
+
+class SesionesQRPort(ABC):
+    """
+    Puerto de salida para almacenar y recuperar sesiones efímeras de vinculación/autorización QR.
+    """
+
+    @abstractmethod
+    def guardar_sesion(self, sesion: SesionQR) -> None:
+        ...
+
+    @abstractmethod
+    def obtener_sesion_por_id(self, sesion_id: str) -> Optional[SesionQR]:
+        ...
+
+
+class NotificadorTiempoRealPort(ABC):
+    """
+    Puerto de salida para emitir notificaciones en tiempo real hacia salas de dispositivos o usuarios.
+    El dominio invoca estos métodos sin acoplarse a Flask-SocketIO ni a protocolos de red.
+    """
+
+    @abstractmethod
+    def notificar_qr_autorizado(self, sesion: SesionQR) -> None:
+        ...
+
+    @abstractmethod
+    def notificar_telemetria(
+        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+    ) -> None:
+        ...
+
+    @abstractmethod
+    def notificar_alerta(
+        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+    ) -> None:
+        ...
+

@@ -11,13 +11,16 @@ from matera.dominio.modelo import (
     Planta,
     RangoParametro,
     RegistroLectura,
+    SesionQR,
     Usuario,
 )
 from matera.dominio.puertos.salida import (
     EmisorTokenPort,
     HasherContrasenaPort,
     HistorialLecturasPort,
+    NotificadorTiempoRealPort,
     PlantasPort,
+    SesionesQRPort,
     TablaReferenciaPort,
     UsuariosPort,
 )
@@ -133,3 +136,39 @@ class FakeHasher(HasherContrasenaPort):
 
     def verificar(self, password: str, password_hash: str) -> bool:
         return password_hash == self.generar_hash(password)
+
+
+class FakeSesionesQR(SesionesQRPort):
+    """Doble en memoria de SesionesQRPort."""
+
+    def __init__(self):
+        self.sesiones: Dict[str, SesionQR] = {}
+
+    def guardar_sesion(self, sesion: SesionQR) -> None:
+        self.sesiones[sesion.id] = sesion
+
+    def obtener_sesion_por_id(self, sesion_id: str) -> Optional[SesionQR]:
+        return self.sesiones.get(sesion_id)
+
+
+class FakeNotificadorTiempoReal(NotificadorTiempoRealPort):
+    """Doble en memoria de NotificadorTiempoRealPort que registra los eventos emitidos."""
+
+    def __init__(self):
+        self.eventos_qr: List[SesionQR] = []
+        self.eventos_telemetria: List[Tuple[Planta, Lectura, Diagnostico]] = []
+        self.eventos_alerta: List[Tuple[Planta, Lectura, Diagnostico]] = []
+
+    def notificar_qr_autorizado(self, sesion: SesionQR) -> None:
+        self.eventos_qr.append(sesion)
+
+    def notificar_telemetria(
+        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+    ) -> None:
+        self.eventos_telemetria.append((planta, lectura, diagnostico))
+
+    def notificar_alerta(
+        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+    ) -> None:
+        self.eventos_alerta.append((planta, lectura, diagnostico))
+

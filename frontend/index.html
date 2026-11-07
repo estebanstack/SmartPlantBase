@@ -8,7 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    <!-- Cliente estático: consume la API con fetch, el backend no genera este HTML -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script defer src="js/config.js"></script>
     <script defer src="js/api.js"></script>
     <script defer src="js/ui.js"></script>
@@ -87,8 +88,8 @@
                         <label for="planta-select">Planta que estás viendo</label>
                         <select id="planta-select"></select>
                     </div>
-                    <button type="button" id="btn-token-dispositivo" class="btn-secundario ancho">
-                        🔑 Obtener token del dispositivo
+                    <button type="button" id="btn-qr-dispositivo" class="btn-secundario ancho">
+                        📱 Vincular dispositivo
                     </button>
 
                     <form id="form-ajena" class="ajena" novalidate>
@@ -122,20 +123,37 @@
                 </div>
             </div>
 
-            <!-- Token del dispositivo -->
-            <div class="card seccion token-box hidden" id="token-box">
-                <h3>Token del dispositivo <code id="token-dispositivo-id"></code></h3>
-                <p class="texto-suave">Es lo que se grabaría en el ESP32. Para la simulación, pásalo al simulador:</p>
-                <div class="fila">
-                    <input type="text" id="token-comando" readonly>
-                    <button type="button" id="btn-copiar-comando" class="btn-secundario">Copiar comando</button>
+            <!-- Vinculación del dispositivo por código QR -->
+            <div class="card seccion qr-box hidden" id="qr-box">
+                <div class="live-header">
+                    <h3>Vincular dispositivo · <code id="qr-dispositivo-id"></code></h3>
+                    <span id="qr-estado-badge" class="chip chip-BAJO">Pendiente</span>
                 </div>
-                <div class="fila">
-                    <input type="text" id="token-valor" readonly>
-                    <button type="button" id="btn-copiar-token" class="btn-secundario">Copiar token</button>
+                <p class="texto-suave">
+                    Escanea el código QR o confirma la vinculación para sincronizar el sensor de tu planta.
+                </p>
+                <div class="qr-layout">
+                    <div class="qr-visual">
+                        <div id="qr-canvas" class="qr-canvas"></div>
+                    </div>
+                    <div class="qr-acciones">
+                        <div class="fila" style="margin-top: 0;">
+                            <button type="button" id="btn-autorizar-qr" class="btn-primary">
+                                Confirmar vinculación
+                            </button>
+                        </div>
+                        <p class="texto-suave pequeno" style="margin-top: 1rem;">
+                            Comando para iniciar el simulador del sensor:
+                        </p>
+                        <div class="fila">
+                            <input type="text" id="qr-comando" readonly>
+                            <button type="button" id="btn-copiar-comando" class="btn-secundario">Copiar</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
+
 
         <!-- Estado en vivo e historial (R5, R6) -->
         <section class="card seccion hidden" id="live-panel">

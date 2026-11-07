@@ -12,6 +12,9 @@ from matera.dominio.excepciones import (
     EspecieNoSoportadaError,
     ParametroInvalidoError,
     PlantaNoEncontradaError,
+    SesionQRError,
+    SesionQRInvalidaError,
+    SesionQRNoEncontradaError,
     UsuarioYaExisteError,
 )
 from matera.dominio.modelo import (
@@ -22,6 +25,7 @@ from matera.dominio.modelo import (
     EstadoActualPlanta,
     EstadoParametro,
     EstadoPlanta,
+    EstadoSesionQR,
     Lectura,
     ParametroAmbiental,
     ParametroEvaluado,
@@ -29,6 +33,7 @@ from matera.dominio.modelo import (
     PlantaRegistrada,
     RangoParametro,
     RegistroLectura,
+    SesionQR,
     SesionUsuario,
     Usuario,
 )
@@ -44,8 +49,12 @@ __all__ = [
     "AccesoNoAutorizadoPlantaError",
     "UsuarioYaExisteError",
     "CredencialesInvalidasError",
+    "SesionQRError",
+    "SesionQRNoEncontradaError",
+    "SesionQRInvalidaError",
     "EstadoParametro",
     "EstadoPlanta",
+    "EstadoSesionQR",
     "ParametroAmbiental",
     "PARAMETROS_AMBIENTALES",
     "PARAMETROS_SOPORTADOS",
@@ -60,5 +69,7 @@ __all__ = [
     "EstadoActualPlanta",
     "RegistroLectura",
     "SesionUsuario",
+    "SesionQR",
     "ValidadorDeEstado",
 ]
+

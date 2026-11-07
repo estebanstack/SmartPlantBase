@@ -14,6 +14,8 @@ from matera.dominio.excepciones import (
     EspecieNoSoportadaError,
     ParametroInvalidoError,
     PlantaNoEncontradaError,
+    SesionQRInvalidaError,
+    SesionQRNoEncontradaError,
     UsuarioYaExisteError,
 )
 from matera.dominio.modelo import (
@@ -21,15 +23,20 @@ from matera.dominio.modelo import (
     Diagnostico,
     EstadoParametro,
     EstadoPlanta,
+    EstadoSesionQR,
     Lectura,
     Planta,
+    SesionQR,
 )
 from matera.dominio.casos_uso import (
     AutenticarUsuario,
+    AutorizarSesionQR,
     ConsultarEspecies,
     ConsultarEstado,
     ConsultarHistorial,
+    ConsultarSesionQR,
     EmitirTokenDispositivo,
+    GenerarSesionQR,
     ListarPlantas,
     RegistrarLectura,
     RegistrarPlanta,
@@ -40,7 +47,9 @@ from tests.fakes import (
     FakeEmisorToken,
     FakeHasher,
     FakeHistorialLecturas,
+    FakeNotificadorTiempoReal,
     FakePlantas,
+    FakeSesionesQR,
     FakeTablaReferencia,
     FakeUsuarios,
 )
@@ -392,3 +401,102 @@ def test_cada_parametro_del_catalogo_tiene_limites_y_recomendaciones():
         assert parametro.recomendacion(EstadoParametro.BAJO), nombre
         assert parametro.recomendacion(EstadoParametro.ALTO), nombre
         assert parametro.recomendacion(EstadoParametro.OPTIMO) is None
+
+
+# -----------------------------------------------------------------------------
+# 5. Sesiones QR y notificaciones en tiempo real (WebSocket Puertos)
+# -----------------------------------------------------------------------------
+
+def test_generar_y_autorizar_sesion_qr_vincula_dispositivo_y_notifica(
+    fake_plantas, fake_emisor
+):
+    sesiones_qr = FakeSesionesQR()
+    notificador = FakeNotificadorTiempoReal()
+
+    generador = GenerarSesionQR(sesiones_qr)
+    consultor = ConsultarSesionQR(sesiones_qr)
+    autorizador = AutorizarSesionQR(sesiones_qr, fake_plantas, fake_emisor, notificador)
+
+    sesion = generador.generar_sesion_qr(planta_id="planta-01")
+    assert sesion.estado == EstadoSesionQR.PENDIENTE
+    assert sesion.planta_id == "planta-01"
+
+    consultada = consultor.consultar_sesion_qr(sesion.id)
+    assert consultada.id == sesion.id
+
+    autorizada = autorizador.autorizar_sesion_qr(
+        sesion_id=sesion.id,
+        usuario_id="usr-ana",
+        planta_id="planta-01",
+    )
+    assert autorizada.estado == EstadoSesionQR.AUTORIZADA
+    assert autorizada.usuario_id == "usr-ana"
+    assert autorizada.dispositivo_id == "esp32-01"
+    assert autorizada.token == "fake-jwt-disp-esp32-01"
+    assert len(notificador.eventos_qr) == 1
+    assert notificador.eventos_qr[0].id == sesion.id
+
+
+def test_autorizar_sesion_qr_rechaza_reutilizacion_o_usuario_ajeno(
+    fake_plantas, fake_emisor
+):
+    sesiones_qr = FakeSesionesQR()
+    notificador = FakeNotificadorTiempoReal()
+    generador = GenerarSesionQR(sesiones_qr)
+    autorizador = AutorizarSesionQR(sesiones_qr, fake_plantas, fake_emisor, notificador)
+
+    sesion = generador.generar_sesion_qr(planta_id="planta-01")
+
+    with pytest.raises(AccesoNoAutorizadoPlantaError):
+        autorizador.autorizar_sesion_qr(
+            sesion_id=sesion.id,
+            usuario_id="usr-intruso",
+            planta_id="planta-01",
+        )
+
+    autorizador.autorizar_sesion_qr(
+        sesion_id=sesion.id,
+        usuario_id="usr-ana",
+        planta_id="planta-01",
+    )
+
+    with pytest.raises(SesionQRInvalidaError):
+        autorizador.autorizar_sesion_qr(
+            sesion_id=sesion.id,
+            usuario_id="usr-ana",
+            planta_id="planta-01",
+        )
+
+
+def test_consultar_sesion_qr_inexistente_lanza_error():
+    sesiones_qr = FakeSesionesQR()
+    consultor = ConsultarSesionQR(sesiones_qr)
+    with pytest.raises(SesionQRNoEncontradaError):
+        consultor.consultar_sesion_qr("qr-inexistente")
+
+
+def test_registrar_lectura_emite_telemetria_y_alerta_en_tiempo_real(
+    fake_tabla, fake_plantas, fake_historial
+):
+    notificador = FakeNotificadorTiempoReal()
+    caso_uso = RegistrarLectura(fake_tabla, fake_plantas, fake_historial, notificador)
+
+    # Lectura saludable: emite telemetría pero NO alerta
+    diag_ok = caso_uso.registrar(
+        dispositivo_id="esp32-01",
+        valores={"humedad": 30.0, "luz": 500.0, "temperatura": 22.0},
+    )
+    assert diag_ok.estado == EstadoPlanta.SALUDABLE
+    assert len(notificador.eventos_telemetria) == 1
+    assert len(notificador.eventos_alerta) == 0
+
+    # Lectura en riesgo: emite telemetría Y alerta en tiempo real
+    diag_riesgo = caso_uso.registrar(
+        dispositivo_id="esp32-01",
+        valores={"humedad": 5.0, "luz": 500.0, "temperatura": 22.0},
+    )
+    assert diag_riesgo.estado == EstadoPlanta.EN_RIESGO
+    assert len(notificador.eventos_telemetria) == 2
+    assert len(notificador.eventos_alerta) == 1
+    assert notificador.eventos_alerta[0][0].usuario_id == "usr-ana"
+

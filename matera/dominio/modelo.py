@@ -9,7 +9,7 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Dict, List, Mapping, Optional, Tuple
 
-from matera.dominio.excepciones import ParametroInvalidoError
+from matera.dominio.excepciones import ParametroInvalidoError, SesionQRInvalidaError
 
 
 class EstadoParametro(str, Enum):
@@ -226,3 +226,69 @@ class PlantaRegistrada:
     """Resultado de registrar una planta: la planta y el token que debe grabarse en su dispositivo."""
     planta: Planta
     token_dispositivo: str
+
+
+class EstadoSesionQR(str, Enum):
+    """Estados del ciclo de vida de una sesión efímera de vinculación o autorización QR."""
+    PENDIENTE = "PENDIENTE"
+    AUTORIZADA = "AUTORIZADA"
+    EXPIRADA = "EXPIRADA"
+
+
+@dataclass
+class SesionQR:
+    """
+    Entidad de dominio que representa una sesión efímera de vinculación o autenticación vía QR.
+    Permite sincronizar en tiempo real el cliente web y el dispositivo mediante salas WebSocket.
+    """
+    id: str
+    estado: EstadoSesionQR = EstadoSesionQR.PENDIENTE
+    usuario_id: Optional[str] = None
+    token: Optional[str] = None
+    planta_id: Optional[str] = None
+    dispositivo_id: Optional[str] = None
+    creada_en: Optional[datetime] = None
+    expira_en: Optional[datetime] = None
+
+    def esta_expirada(self, ahora: Optional[datetime] = None) -> bool:
+        """Verifica si la sesión ha superado su tiempo límite de validez."""
+        if self.expira_en is None:
+            return False
+        if ahora is None:
+            ahora = datetime.now(timezone.utc)
+        return ahora > self.expira_en
+
+    def autorizar(
+        self,
+        usuario_id: str,
+        token: str,
+        ahora: Optional[datetime] = None,
+        planta_id: Optional[str] = None,
+        dispositivo_id: Optional[str] = None,
+    ) -> None:
+        """
+        Regla de negocio: sólo una sesión en estado PENDIENTE y no expirada
+        puede ser autorizada.
+        """
+        if not usuario_id or not usuario_id.strip():
+            raise ValueError("El usuario_id es obligatorio para autorizar la sesión QR.")
+        if not token or not token.strip():
+            raise ValueError("El token de autenticación es obligatorio para autorizar la sesión QR.")
+
+        if self.esta_expirada(ahora):
+            self.estado = EstadoSesionQR.EXPIRADA
+            raise SesionQRInvalidaError("La sesión QR ha expirado.")
+
+        if self.estado != EstadoSesionQR.PENDIENTE:
+            raise SesionQRInvalidaError(
+                f"La sesión QR no está pendiente (estado actual: {self.estado.value})."
+            )
+
+        self.usuario_id = usuario_id.strip()
+        self.token = token.strip()
+        if planta_id is not None:
+            self.planta_id = planta_id.strip()
+        if dispositivo_id is not None:
+            self.dispositivo_id = dispositivo_id.strip()
+        self.estado = EstadoSesionQR.AUTORIZADA
+

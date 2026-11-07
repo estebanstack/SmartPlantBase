@@ -97,7 +97,7 @@ const PlantUI = {
 
     mostrarSinSesion() {
         this._mostrar('auth-panel', true);
-        ['sesion-bar', 'plantas-panel', 'live-panel', 'token-box'].forEach((id) => this._mostrar(id, false));
+        ['sesion-bar', 'plantas-panel', 'live-panel', 'qr-box'].forEach((id) => this._mostrar(id, false));
         this.habilitarDiagnostico(false);
     },
 
@@ -250,7 +250,7 @@ const PlantUI = {
     },
 
     // ------------------------------------------------------------------
-    // Plantas del usuario y token del dispositivo (R7)
+    // Plantas del usuario y vinculación de dispositivo (R7)
     // ------------------------------------------------------------------
 
     poblarPlantas(plantas, seleccionadaId) {
@@ -259,11 +259,11 @@ const PlantUI = {
         if (plantas.length === 0) {
             select.appendChild(new Option('Aún no tienes plantas: registra una', '', true, true));
             select.disabled = true;
-            this._el('btn-token-dispositivo').disabled = true;
+            this._el('btn-qr-dispositivo').disabled = true;
             return;
         }
         select.disabled = false;
-        this._el('btn-token-dispositivo').disabled = false;
+        this._el('btn-qr-dispositivo').disabled = false;
         plantas.forEach((p) => {
             const texto = `${p.nombre} · ${this._capitalizar(p.especie)} · ${p.dispositivo_id}`;
             select.appendChild(new Option(texto, p.id, false, p.id === seleccionadaId));
@@ -286,14 +286,56 @@ const PlantUI = {
         this._el('form-planta').reset();
     },
 
-    /** Muestra el token del dispositivo y el comando listo para el simulador. */
-    mostrarTokenDispositivo(dispositivoId, token, urlBackend) {
-        this._el('token-dispositivo-id').textContent = dispositivoId;
-        this._el('token-valor').value = token;
-        this._el('token-comando').value =
-            `python simulador_esp32.py --url ${urlBackend} --dispositivo-id ${dispositivoId} --token ${token}`;
-        this._mostrar('token-box', true);
+    /** Muestra la tarjeta de vinculación por QR para el dispositivo de la planta. */
+    mostrarSesionQRDispositivo(dispositivoId, sesionQR, urlBackend) {
+        this._el('qr-dispositivo-id').textContent = dispositivoId;
+        this._el('qr-comando').value =
+            `python simulador_esp32.py --url ${urlBackend} --dispositivo-id ${dispositivoId}`;
+        this.actualizarEstadoQR(sesionQR.estado || 'PENDIENTE');
+
+        const contenedor = this._el('qr-canvas');
+        contenedor.innerHTML = '';
+        const payloadQR = JSON.stringify({
+            session_id: sesionQR.id,
+            dispositivo_id: dispositivoId,
+            planta_id: sesionQR.planta_id,
+        });
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(contenedor, {
+                text: payloadQR,
+                width: 132,
+                height: 132,
+                colorDark: '#0d131a',
+                colorLight: '#ffffff',
+            });
+        } else {
+            contenedor.textContent = sesionQR.id;
+        }
+
+        this._mostrar('qr-box', true);
     },
+
+    actualizarEstadoQR(estado) {
+        const badge = this._el('qr-estado-badge');
+        const boton = this._el('btn-autorizar-qr');
+        if (estado === 'AUTORIZADA') {
+            badge.textContent = 'Vinculado';
+            badge.className = 'chip chip-OPTIMO';
+            boton.textContent = '✓ Dispositivo vinculado';
+            boton.disabled = true;
+        } else if (estado === 'EXPIRADA') {
+            badge.textContent = 'Expirado';
+            badge.className = 'chip chip-CRITICO';
+            boton.textContent = 'Código expirado · vuelve a vincular';
+            boton.disabled = true;
+        } else {
+            badge.textContent = 'Pendiente';
+            badge.className = 'chip chip-BAJO';
+            boton.textContent = 'Confirmar vinculación';
+            boton.disabled = false;
+        }
+    },
+
 
     // ------------------------------------------------------------------
     // Panel en vivo e historial (R5, R6)
@@ -319,7 +361,7 @@ const PlantUI = {
             this._el('live-recs').innerHTML = '';
             const li = document.createElement('li');
             li.className = 'obs-OK';
-            li.textContent = 'Arranca el simulador con el token del dispositivo para ver lecturas aquí.';
+            li.textContent = 'Vincula e inicia tu dispositivo para recibir lecturas de la planta.';
             this._el('live-recs').appendChild(li);
             return;
         }

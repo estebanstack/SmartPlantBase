@@ -13,5 +13,6 @@ if __name__ == "__main__":
     load_dotenv()  # lee JWT_SECRET, TABLA_REFERENCIA_DRIVER y PORT desde .env
     puerto = int(os.getenv("PORT", 5000))
     aplicacion = create_app()
-    print(f"Iniciando API de Diagnóstico de Plantas en http://localhost:{puerto}")
-    aplicacion.run(host="0.0.0.0", port=puerto, debug=True)
+    print(f"Iniciando API y Servidor WebSocket en http://localhost:{puerto}")
+    aplicacion.socketio.run(aplicacion, host="0.0.0.0", port=puerto, debug=True, allow_unsafe_werkzeug=True)
+

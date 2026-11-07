@@ -11,30 +11,38 @@ from typing import Optional
 from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
+from flask_socketio import SocketIO
 
 from matera.adaptadores.entrada.api_dispositivos import crear_api_dispositivos_blueprint
 from matera.adaptadores.entrada.api_front import crear_api_front_blueprint
 from matera.adaptadores.entrada.errores_http import registrar_manejadores_error
 from matera.adaptadores.entrada.verificador_jwt import JwtVerificadorToken
+from matera.adaptadores.entrada.websocket_handlers import registrar_websocket_handlers
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
 from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
 from matera.adaptadores.salida.historial_bd import BdHistorialLecturasAdapter
+from matera.adaptadores.salida.notificador_ws import SocketIONotificadorAdapter
 from matera.adaptadores.salida.plantas_bd import BdPlantasAdapter
+from matera.adaptadores.salida.sesiones_qr_memoria import MemoriaSesionesQRAdapter
 from matera.adaptadores.salida.sqlite_bd import inicializar_bd
 from matera.adaptadores.salida.tabla_bd import BdTablaReferenciaAdapter
 from matera.adaptadores.salida.tabla_csv import CsvTablaReferenciaAdapter
 from matera.adaptadores.salida.usuarios_bd import BdUsuariosAdapter
 from matera.dominio.casos_uso import (
     AutenticarUsuario,
+    AutorizarSesionQR,
     ConsultarEspecies,
     ConsultarEstado,
     ConsultarHistorial,
+    ConsultarSesionQR,
     EmitirTokenDispositivo,
+    GenerarSesionQR,
     ListarPlantas,
     RegistrarLectura,
     RegistrarPlanta,
     ValidarLectura,
 )
+from matera.dominio.puertos.salida import SesionesQRPort
 
 
 def _clave_temporal() -> str:
@@ -55,15 +63,23 @@ def create_app(
     ruta_bd: Optional[str] = None,
     clave_jwt: Optional[str] = None,
     datos_demo: Optional[bool] = None,
+    sesion_qr_repo: Optional[SesionesQRPort] = None,
+    socketio_instance: Optional[SocketIO] = None,
 ) -> Flask:
     """
     Fábrica de la aplicación Flask en Arquitectura Hexagonal.
-    Ensambla adaptadores de salida y entrada alrededor del núcleo de dominio.
+    Ensambla adaptadores de salida y entrada (REST + WebSockets) alrededor del núcleo de dominio.
     """
     load_dotenv()
     app = Flask(__name__)
     app.json.sort_keys = False
     CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    # 0. Servidor WebSocket (Flask-SocketIO) para salas qr_{session_id} y user_{usuario_id}
+    sio = socketio_instance or SocketIO()
+    sio.init_app(app, cors_allowed_origins="*")
+    app.socketio = sio
+
 
     # 1. Configuración de rutas por defecto
     ruta_base = Path(__file__).parent.parent
@@ -98,16 +114,38 @@ def create_app(
     # 4b. Adaptador de hash de contraseñas (R7)
     hasher = WerkzeugHasherAdapter()
 
+    # 4c. Adaptadores de sesiones QR en memoria y notificaciones en tiempo real (WebSockets)
+    sesiones_qr = sesion_qr_repo if sesion_qr_repo is not None else MemoriaSesionesQRAdapter()
+    notificador_ws = SocketIONotificadorAdapter(sio)
+
     # 5. Casos de uso del dominio: cada uno recibe solo los puertos de salida que necesita
     validar_lectura = ValidarLectura(tabla_referencia)
     consultar_especies = ConsultarEspecies(tabla_referencia)
-    registrar_lectura = RegistrarLectura(tabla_referencia, plantas, historial)
+    registrar_lectura = RegistrarLectura(
+        tabla_referencia, plantas, historial, notificador=notificador_ws
+    )
     consultar_estado = ConsultarEstado(tabla_referencia, plantas, historial)
     consultar_historial = ConsultarHistorial(plantas, historial)
     listar_plantas = ListarPlantas(plantas)
     registrar_planta = RegistrarPlanta(tabla_referencia, plantas, emisor_token)
     emitir_token_dispositivo = EmitirTokenDispositivo(plantas, emisor_token)
     autenticar = AutenticarUsuario(usuarios, hasher, emisor_token)
+    generar_sesion_qr = GenerarSesionQR(sesiones_qr)
+    consultar_sesion_qr = ConsultarSesionQR(sesiones_qr)
+    autorizar_sesion_qr = AutorizarSesionQR(
+        sesiones_qr,
+        plantas=plantas,
+        emisor_token=emisor_token,
+        notificador=notificador_ws,
+    )
+
+    # 5b. Adaptador de entrada WebSocket (salas qr_{id} y user_{id})
+    registrar_websocket_handlers(
+        socketio=sio,
+        autorizar_qr_use_case=autorizar_sesion_qr,
+        consultar_qr_use_case=consultar_sesion_qr,
+        verificador=verificador_token,
+    )
 
     # 6. Adaptadores de entrada (Blueprints): cada endpoint recibe solo su puerto de entrada
     app.register_blueprint(crear_api_front_blueprint(
@@ -120,11 +158,16 @@ def create_app(
         emitir_token_dispositivo=emitir_token_dispositivo,
         autenticar=autenticar,
         verificador=verificador_token,
+        generar_sesion_qr=generar_sesion_qr,
+        consultar_sesion_qr=consultar_sesion_qr,
+        autorizar_sesion_qr=autorizar_sesion_qr,
+        socketio=sio,
     ))
     app.register_blueprint(crear_api_dispositivos_blueprint(
         puerto_registro=registrar_lectura,
         verificador=verificador_token,
     ))
+
 
     # 7. Traducción de errores a JSON (adaptadores/entrada/errores_http.py)
     registrar_manejadores_error(app)

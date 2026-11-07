@@ -503,10 +503,43 @@ body {
 .ajena label { font-size: 0.9rem; color: var(--text-muted); }
 .campo-invalido { border-color: #e5534b !important; box-shadow: 0 0 0 3px rgba(229, 83, 75, 0.18); }
 
-/* Caja del token del dispositivo */
-.token-box h3 { font-size: 1.05rem; margin-bottom: 0.4rem; }
-.token-box code { color: var(--success); }
-.token-box input { font-family: ui-monospace, Menlo, Consolas, monospace; }
+/* Vinculación de dispositivo por QR */
+.qr-box h3 { font-size: 1.05rem; margin-bottom: 0.2rem; }
+.qr-box code { color: var(--success); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.qr-box input { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.qr-layout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1.5rem;
+    align-items: center;
+    margin-top: 1.1rem;
+}
+@media (max-width: 680px) {
+    .qr-layout { grid-template-columns: 1fr; justify-items: center; }
+}
+.qr-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+.qr-canvas {
+    background: #ffffff;
+    padding: 0.85rem;
+    border-radius: var(--radius-md);
+    min-width: 156px;
+    min-height: 156px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    color: #0d131a;
+    font-size: 0.75rem;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    text-align: center;
+}
+.qr-acciones { width: 100%; }
+
 
 /* Panel en vivo */
 .live-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }

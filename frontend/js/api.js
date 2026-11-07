@@ -59,6 +59,27 @@ const PlantApi = {
         return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/historial?limite=${limite}`, { token });
     },
 
+    // --- Sesiones QR y Vinculación WebSocket ----------------------------
+    generarSesionQR(sesionId, dispositivoId, plantaId) {
+        return this._pedir('/auth/qr/generar', {
+            metodo: 'POST',
+            cuerpo: { session_id: sesionId, dispositivo_id: dispositivoId, planta_id: plantaId },
+        });
+    },
+
+    consultarSesionQR(sesionId) {
+        return this._pedir(`/auth/qr/${encodeURIComponent(sesionId)}`);
+    },
+
+    autorizarSesionQR(token, sesionId, plantaId) {
+        return this._pedir(`/auth/qr/${encodeURIComponent(sesionId)}/autorizar`, {
+            metodo: 'POST',
+            token,
+            cuerpo: { planta_id: plantaId },
+        });
+    },
+
+
     // --- Petición genérica ----------------------------------------------
     async _pedir(ruta, { metodo = 'GET', token = null, cuerpo = null } = {}) {
         const cabeceras = {};

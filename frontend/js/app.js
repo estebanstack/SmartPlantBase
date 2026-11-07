@@ -1,14 +1,18 @@
 /**
  * Orquestación del cliente web.
- * Une los eventos de la página con la API (api.js) y la presentación (ui.js):
- * sesión con JWT (R7), plantas del usuario, polling periódico del estado e
- * historial (R5, R6) y el diagnóstico manual de la fase anterior (R1).
+ * Une los eventos de la página con la API REST (api.js), el canal WebSocket en
+ * tiempo real (Socket.IO) y la presentación (ui.js):
+ * - Sesión de usuario con JWT (R7).
+ * - Vinculación de dispositivos vía sesión QR en sala WebSocket 'qr_{session_id}'.
+ * - Telemetría y alertas botánicas en vivo mediante sala WebSocket 'user_{usuario_id}' (R5, R6).
+ * - Diagnóstico manual de la fase anterior (R1).
  */
 
 const sesion = { token: null, usuario: null };
 let plantas = [];
-let intervaloPolling = null;
-let consultaEnCurso = false;
+let socket = null;
+let sesionQRActual = null;
+let historialActual = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     conectarEventos();
@@ -26,9 +30,9 @@ function conectarEventos() {
     alEnviar('form-ajena', probarPlantaAjena);
     document.getElementById('btn-logout').addEventListener('click', () => cerrarSesion());
     document.getElementById('planta-select').addEventListener('change', () => seleccionarPlanta(PlantUI.plantaSeleccionada()));
-    document.getElementById('btn-token-dispositivo').addEventListener('click', pedirTokenDispositivo);
-    document.getElementById('btn-copiar-comando').addEventListener('click', () => copiar('token-comando'));
-    document.getElementById('btn-copiar-token').addEventListener('click', () => copiar('token-valor'));
+    document.getElementById('btn-qr-dispositivo').addEventListener('click', iniciarVinculacionQRDispositivo);
+    document.getElementById('btn-autorizar-qr').addEventListener('click', autorizarVinculacionQRDispositivo);
+    document.getElementById('btn-copiar-comando').addEventListener('click', () => copiar('qr-comando'));
 }
 
 /** Evita que el formulario recargue la página (RA2) y llama a la acción. */
@@ -66,7 +70,7 @@ function parametrosDe(especies) {
 }
 
 // ---------------------------------------------------------------------------
-// Sesión (R7)
+// Sesión y Canal WebSocket Post-Auth (R7)
 // ---------------------------------------------------------------------------
 
 async function iniciarSesion() {
@@ -93,20 +97,22 @@ function abrirSesion({ token, usuario }) {
     sesion.usuario = usuario;
     guardarSesion();
     PlantUI.mostrarSesion(usuario);
+    conectarWebSocketUsuario();
     cargarPlantas();
 }
 
 function cerrarSesion(mensaje) {
-    detenerPolling();
+    desconectarWebSocket();
     sesion.token = null;
     sesion.usuario = null;
     plantas = [];
+    sesionQRActual = null;
+    historialActual = [];
     guardarSesion();
     PlantUI.mostrarSinSesion();
     if (mensaje) PlantUI.mostrarError('Sesión cerrada', mensaje);
 }
 
-/** La sesión se guarda solo en esta pestaña (sessionStorage) para no perderla al recargar. */
 function guardarSesion() {
     try {
         if (sesion.token) sessionStorage.setItem('matera-sesion', JSON.stringify(sesion));
@@ -130,7 +136,90 @@ function restaurarSesion() {
 }
 
 // ---------------------------------------------------------------------------
-// Plantas y token del dispositivo (R7)
+// Conexión WebSocket Dual: Sala QR (qr_{id}) y Sala Usuario (user_{id})
+// ---------------------------------------------------------------------------
+
+function conectarWebSocketUsuario() {
+    desconectarWebSocket();
+    if (typeof io === 'undefined' || !sesion.usuario) {
+        return;
+    }
+
+    socket = io(urlBackend(), { transports: ['websocket', 'polling'] });
+
+    socket.on('connect', () => {
+        socket.emit(
+            'unirse_canal_usuario',
+            { usuario_id: sesion.usuario.id, token_usuario: sesion.token },
+            () => {
+                PlantUI.mostrarEstadoPolling('Sincronización en vivo activa', true);
+            }
+        );
+        if (sesionQRActual && sesionQRActual.id) {
+            socket.emit('unirse_sesion_qr', { session_id: sesionQRActual.id });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        PlantUI.mostrarEstadoPolling('Reconectando...', false);
+    });
+
+    socket.on('qr_autorizado', (datos) => {
+        if (sesionQRActual && datos && datos.id === sesionQRActual.id) {
+            sesionQRActual = datos;
+            PlantUI.actualizarEstadoQR('AUTORIZADA');
+            PlantUI.mostrarAviso(
+                `Dispositivo '${datos.dispositivo_id || datos.id}' vinculado correctamente.`
+            );
+        }
+    });
+
+    socket.on('telemetria_actualizada', (payload) => {
+        const seleccionadaId = PlantUI.plantaSeleccionada();
+        if (!payload || (payload.planta_id && payload.planta_id !== seleccionadaId)) {
+            return;
+        }
+        const planta = plantas.find((p) => p.id === seleccionadaId);
+        if (!planta) return;
+
+        if (payload.ultima_lectura && payload.diagnostico) {
+            PlantUI.renderizarEstadoEnVivo({
+                planta,
+                ultima_lectura: payload.ultima_lectura,
+                diagnostico: payload.diagnostico,
+            });
+            const nuevoRegistro = {
+                ...payload.ultima_lectura,
+                estado_planta: payload.estado,
+            };
+            historialActual = [nuevoRegistro, ...historialActual].slice(0, CONFIG.LECTURAS_EN_HISTORIAL);
+            PlantUI.renderizarHistorial(historialActual);
+            PlantUI.mostrarEstadoPolling(
+                `Actualizado a las ${new Date().toLocaleTimeString()}`,
+                true
+            );
+        } else {
+            cargarEstadoEHistorialInicial(seleccionadaId);
+        }
+    });
+
+    socket.on('alerta_planta', (alerta) => {
+        if (!alerta) return;
+        const nombrePlanta = alerta.planta_nombre || alerta.especie || 'Planta';
+        const rec = (alerta.recomendaciones && alerta.recomendaciones[0]) || 'Revisa los parámetros ambientales.';
+        PlantUI.mostrarError(`Atención en ${nombrePlanta} (${alerta.estado})`, rec);
+    });
+}
+
+function desconectarWebSocket() {
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Plantas y Vinculación QR por WebSocket (R7)
 // ---------------------------------------------------------------------------
 
 async function cargarPlantas(seleccionarId = null) {
@@ -145,11 +234,33 @@ async function cargarPlantas(seleccionarId = null) {
 }
 
 function seleccionarPlanta(plantaId) {
-    detenerPolling();
     const planta = plantas.find((p) => p.id === plantaId);
     if (!planta) return;
     PlantUI.prepararPanelEnVivo(planta);
-    iniciarPolling(planta.id);
+    cargarEstadoEHistorialInicial(planta.id);
+}
+
+async function cargarEstadoEHistorialInicial(plantaId) {
+    if (!sesion.token) return;
+    try {
+        const [estado, historial] = await Promise.all([
+            PlantApi.obtenerEstadoPlanta(sesion.token, plantaId),
+            PlantApi.obtenerHistorialPlanta(sesion.token, plantaId, CONFIG.LECTURAS_EN_HISTORIAL),
+        ]);
+        historialActual = historial;
+        PlantUI.renderizarEstadoEnVivo(estado);
+        PlantUI.renderizarHistorial(historial);
+        PlantUI.mostrarEstadoPolling(
+            `Actualizado a las ${new Date().toLocaleTimeString()}`,
+            true
+        );
+    } catch (error) {
+        if (error.status === 401) {
+            cerrarSesion('Tu sesión expiró. Inicia sesión otra vez.');
+        } else {
+            PlantUI.mostrarEstadoPolling(`No se pudo actualizar: ${error.message}`, false);
+        }
+    }
 }
 
 async function registrarPlanta() {
@@ -161,27 +272,79 @@ async function registrarPlanta() {
     try {
         const respuesta = await PlantApi.registrarPlanta(sesion.token, nombre, especie, dispositivoId);
         PlantUI.limpiarNuevaPlanta();
-        PlantUI.mostrarAviso(`Planta "${respuesta.planta.nombre}" registrada. Copia el token para su dispositivo.`);
-        PlantUI.mostrarTokenDispositivo(respuesta.planta.dispositivo_id, respuesta.token_dispositivo, urlBackend());
         await cargarPlantas(respuesta.planta.id);
+        await abrirSesionQRParaPlanta(respuesta.planta);
+        PlantUI.mostrarAviso(
+            `Planta "${respuesta.planta.nombre}" registrada. Confirma la vinculación de su dispositivo.`
+        );
     } catch (error) {
         manejarError(error);
     }
 }
 
-async function pedirTokenDispositivo() {
+async function iniciarVinculacionQRDispositivo() {
     const plantaId = PlantUI.plantaSeleccionada();
     const planta = plantas.find((p) => p.id === plantaId);
     if (!planta) return;
     try {
-        const respuesta = await PlantApi.obtenerTokenDispositivo(sesion.token, planta.id);
-        PlantUI.mostrarTokenDispositivo(planta.dispositivo_id, respuesta.token_dispositivo, urlBackend());
+        await abrirSesionQRParaPlanta(planta);
     } catch (error) {
         manejarError(error);
     }
 }
 
-/** El simulador necesita la URL del backend sin el sufijo /api. */
+async function abrirSesionQRParaPlanta(planta) {
+    const sesionQR = await PlantApi.generarSesionQR(
+        planta.dispositivo_id,
+        planta.dispositivo_id,
+        planta.id
+    );
+    sesionQRActual = sesionQR;
+    if (socket && socket.connected) {
+        socket.emit('unirse_sesion_qr', { session_id: sesionQR.id });
+    }
+    PlantUI.mostrarSesionQRDispositivo(planta.dispositivo_id, sesionQR, urlBackend());
+}
+
+async function autorizarVinculacionQRDispositivo() {
+    if (!sesionQRActual) return;
+    const plantaId = sesionQRActual.planta_id || PlantUI.plantaSeleccionada();
+    if (!plantaId) return;
+
+    if (socket && socket.connected) {
+        socket.emit(
+            'autorizar_qr',
+            {
+                session_id: sesionQRActual.id,
+                planta_id: plantaId,
+                token_usuario: sesion.token,
+            },
+            (ack) => {
+                if (ack && ack.status === 'ok' && ack.sesion) {
+                    sesionQRActual = ack.sesion;
+                    PlantUI.actualizarEstadoQR('AUTORIZADA');
+                    PlantUI.mostrarAviso(
+                        `Dispositivo '${ack.sesion.dispositivo_id}' vinculado correctamente.`
+                    );
+                } else if (ack && ack.error) {
+                    PlantUI.mostrarError('No se pudo vincular el dispositivo', ack.mensaje || ack.error);
+                }
+            }
+        );
+        return;
+    }
+
+    try {
+        const autorizada = await PlantApi.autorizarSesionQR(sesion.token, sesionQRActual.id, plantaId);
+        sesionQRActual = autorizada;
+        PlantUI.actualizarEstadoQR(autorizada.estado);
+        PlantUI.mostrarAviso(`Dispositivo '${autorizada.dispositivo_id}' vinculado correctamente.`);
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+/** El simulador y Socket.IO necesitan la URL del backend sin el sufijo /api. */
 function urlBackend() {
     return CONFIG.API_BASE.replace(/\/api\/?$/, '');
 }
@@ -190,51 +353,9 @@ async function copiar(idCampo) {
     const campo = document.getElementById(idCampo);
     try {
         await navigator.clipboard.writeText(campo.value);
-        PlantUI.mostrarAviso('Copiado al portapapeles.');
+        PlantUI.mostrarAviso('Comando copiado al portapapeles.');
     } catch (_) {
-        campo.select(); // si el navegador no deja copiar, al menos queda seleccionado
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Polling del estado y el historial (R5, R6)
-// ---------------------------------------------------------------------------
-
-function iniciarPolling(plantaId) {
-    actualizarPanel(plantaId);
-    intervaloPolling = setInterval(() => actualizarPanel(plantaId), CONFIG.INTERVALO_POLLING_MS);
-}
-
-function detenerPolling() {
-    if (intervaloPolling) clearInterval(intervaloPolling);
-    intervaloPolling = null;
-}
-
-async function actualizarPanel(plantaId) {
-    if (!sesion.token || consultaEnCurso) return;
-    consultaEnCurso = true;
-    try {
-        const [estado, historial] = await Promise.all([
-            PlantApi.obtenerEstadoPlanta(sesion.token, plantaId),
-            PlantApi.obtenerHistorialPlanta(sesion.token, plantaId, CONFIG.LECTURAS_EN_HISTORIAL),
-        ]);
-        PlantUI.renderizarEstadoEnVivo(estado);
-        PlantUI.renderizarHistorial(historial);
-        PlantUI.mostrarEstadoPolling(
-            `Actualizado ${new Date().toLocaleTimeString()} · se consulta cada ${CONFIG.INTERVALO_POLLING_MS / 1000} s`,
-            true
-        );
-    } catch (error) {
-        if (error.status === 401) {
-            cerrarSesion('Tu sesión expiró. Inicia sesión otra vez.');
-        } else if (error.codigo === 'SIN_CONEXION') {
-            PlantUI.mostrarEstadoPolling('Sin conexión con el backend. Reintentando...', false);
-        } else {
-            detenerPolling();
-            PlantUI.mostrarEstadoPolling(`Consulta detenida: ${error.message}`, false);
-        }
-    } finally {
-        consultaEnCurso = false;
+        campo.select();
     }
 }
 
@@ -294,6 +415,8 @@ function tituloDeError(error) {
         USUARIO_YA_EXISTE: 'Ese correo ya tiene cuenta',
         DISPOSITIVO_YA_VINCULADO: 'Dispositivo ocupado',
         PLANTA_NO_ENCONTRADA: 'Planta no encontrada',
+        SESION_QR_NO_ENCONTRADA: 'Sesión QR no encontrada',
+        SESION_QR_INVALIDA: 'Sesión QR expirada o ya utilizada',
         ACCESO_DENEGADO: 'Acceso denegado (403): esa planta no es tuya',
         SIN_CONEXION: 'Sin conexión con el servicio',
     };
