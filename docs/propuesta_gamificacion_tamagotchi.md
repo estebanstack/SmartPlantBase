@@ -887,7 +887,7 @@ Roadmap estructurado para entrega continua sin riesgo de regresión sobre los 10
 
 ---
 
-## 9. Conclusiones y Sustentación Técnica
+## 9. Conclusiones y Valor Técnico del Proyecto
 
 <div class="conclusion-grid">
     <div class="conclusion-card c1">
@@ -905,6 +905,6 @@ Roadmap estructurado para entrega continua sin riesgo de regresión sobre los 10
 </div>
 
 <div class="box-highlight" style="margin-top: 5px;">
-    <strong>Síntesis para Sustentación Oral:</strong>
-    <em>"Matera-Gotchi demuestra que la arquitectura de software no es un fin en sí misma, sino el cimiento que permite extender un sistema IoT con computación afectiva y gamificación de forma ágil, segura y sin comprometer el rigor biológico ni la estabilidad de producción."</em>
+    <strong>Balance Técnico del Proyecto:</strong>
+    <em>"Matera-Gotchi demuestra que la arquitectura de software limpia y desacoplada permite extender un sistema IoT con computación afectiva y mecánicas lúdicas de forma ágil, escalable y sin comprometer el rigor biológico ni la estabilidad operativa del sistema."</em>
 </div>
