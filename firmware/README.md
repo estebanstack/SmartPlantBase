@@ -125,6 +125,6 @@ Llénala con lo que salga del diagnóstico.
 ## Detalles que conviene saber
 
 - El `dispositivo_id` sale de la MAC del chip (`esp32-A1B2C3`). Al vincular, la planta que elijas pasa a usar ese id. Si otra planta tuya lo tenía, esa queda como `libre-<id>`; si lo tenía una planta de otro usuario, el backend responde 409.
-- El id de la sesión QR lo elige el ESP32 (12 caracteres hex aleatorios) y no el servidor (32), para que el QR sea de versión 3 y se lea bien en una pantalla de 128x64. Vale 5 minutos y el que lo conozca puede recoger el token una sola vez que se autorice, así que está pensado para una demo en red local, no para producción.
+- El id de la sesión QR lo elige el ESP32 (12 caracteres hex aleatorios) y no el servidor (32), para que el QR sea de versión 3 y se lea bien en una pantalla de 128x64. Vale 5 minutos y quien conozca el id puede leer el token de esa sesión una vez autorizada, así que está pensado para una demo en red local, no para producción.
 - Cada lectura se recorta a los límites físicos del backend (humedad 0-100, luz 0-150000, temperatura -50 a 80) para que un sensor ruidoso no provoque un 400.
 - Si el servidor no responde, reintenta con espera creciente (5, 10, 20, 40 y 60 s) y muestra una X en la esquina de la pantalla.
