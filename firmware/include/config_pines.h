@@ -18,8 +18,8 @@
 // Valor que aparece por defecto en el portal de configuración WiFi (se puede cambiar ahí).
 // Formato "equipo:puerto". Usa el nombre que imprime scripts/iniciar_demo.sh (<hostname>.local)
 // o, si el .local no resuelve, la IP del portátil en la red del hotspot (ej. "192.168.43.10:5000").
-// TODO: cambia "mi-portatil" por el nombre real de tu portátil.
-#define SERVIDOR_POR_DEFECTO "mi-portatil.local:5000"
+// Puesto con el hostname real del portátil; si el .local falla, escribe la IP en el portal.
+#define SERVIDOR_POR_DEFECTO "esteban-IdeaPad-Slim-3-15IRH8.local:5000"
 
 // -------------------------------------------------------------------------------------
 //  2. PANTALLA OLED SSD1306 (I2C, 128x64)
