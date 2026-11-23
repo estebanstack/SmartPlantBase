@@ -13,6 +13,8 @@ let plantas = [];
 let socket = null;
 let sesionQRActual = null;
 let historialActual = [];
+// Sesión QR que el ESP32 mostró en su pantalla: la URL del QR trae ?vincular=<id>
+let vincularPendiente = new URLSearchParams(window.location.search).get('vincular');
 
 document.addEventListener('DOMContentLoaded', () => {
     conectarEventos();
@@ -33,6 +35,7 @@ function conectarEventos() {
     document.getElementById('btn-qr-dispositivo').addEventListener('click', iniciarVinculacionQRDispositivo);
     document.getElementById('btn-autorizar-qr').addEventListener('click', autorizarVinculacionQRDispositivo);
     document.getElementById('btn-copiar-comando').addEventListener('click', () => copiar('qr-comando'));
+    document.getElementById('btn-vincular').addEventListener('click', vincularDispositivoDelQR);
 }
 
 /** Evita que el formulario recargue la página (RA2) y llama a la acción. */
@@ -133,6 +136,9 @@ function restaurarSesion() {
         /* ignorar */
     }
     PlantUI.mostrarSinSesion();
+    if (vincularPendiente) {
+        PlantUI.mostrarAviso('Inicia sesión (o crea tu cuenta) para vincular tu matera.');
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +200,7 @@ function conectarWebSocketUsuario() {
             };
             historialActual = [nuevoRegistro, ...historialActual].slice(0, CONFIG.LECTURAS_EN_HISTORIAL);
             PlantUI.renderizarHistorial(historialActual);
+            if (payload.gotchi) PlantUI.renderizarGotchi(payload.gotchi);
             PlantUI.mostrarEstadoPolling(
                 `Actualizado a las ${new Date().toLocaleTimeString()}`,
                 true
@@ -228,6 +235,7 @@ async function cargarPlantas(seleccionarId = null) {
         const elegida = seleccionarId || (plantas[0] && plantas[0].id) || null;
         PlantUI.poblarPlantas(plantas, elegida);
         seleccionarPlanta(elegida);
+        if (vincularPendiente) PlantUI.mostrarVincularDispositivo(plantas, vincularPendiente);
     } catch (error) {
         manejarError(error);
     }
@@ -242,6 +250,12 @@ function seleccionarPlanta(plantaId) {
 
 async function cargarEstadoEHistorialInicial(plantaId) {
     if (!sesion.token) return;
+    // El Gotchi se pide aparte: si falla, el resto del panel sigue funcionando
+    PlantApi.obtenerGotchi(sesion.token, plantaId)
+        .then((gotchi) => {
+            if (PlantUI.plantaSeleccionada() === plantaId) PlantUI.renderizarGotchi(gotchi);
+        })
+        .catch(() => {});
     try {
         const [estado, historial] = await Promise.all([
             PlantApi.obtenerEstadoPlanta(sesion.token, plantaId),
@@ -277,6 +291,22 @@ async function registrarPlanta() {
         PlantUI.mostrarAviso(
             `Planta "${respuesta.planta.nombre}" registrada. Confirma la vinculación de su dispositivo.`
         );
+    } catch (error) {
+        manejarError(error);
+    }
+}
+
+/** El usuario eligió una planta para el ESP32 que mostró el QR: se autoriza esa sesión. */
+async function vincularDispositivoDelQR() {
+    const plantaId = PlantUI.plantaAVincular();
+    if (!plantaId || !vincularPendiente) return;
+    try {
+        const autorizada = await PlantApi.autorizarSesionQR(sesion.token, vincularPendiente, plantaId);
+        vincularPendiente = null;
+        window.history.replaceState({}, '', window.location.pathname);   // quita ?vincular= de la URL
+        PlantUI.ocultarVincularDispositivo();
+        PlantUI.mostrarAviso(`Matera ${autorizada.dispositivo_id} vinculada. Ya puede enviar lecturas.`);
+        await cargarPlantas(plantaId);
     } catch (error) {
         manejarError(error);
     }

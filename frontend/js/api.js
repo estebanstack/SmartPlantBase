@@ -55,6 +55,11 @@ const PlantApi = {
         return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/estado`, { token });
     },
 
+    /** Matera-Gotchi: ánimo, XP, nivel y racha de la planta. */
+    obtenerGotchi(token, plantaId) {
+        return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/gotchi`, { token });
+    },
+
     obtenerHistorialPlanta(token, plantaId, limite) {
         return this._pedir(`/plantas/${encodeURIComponent(plantaId)}/historial?limite=${limite}`, { token });
     },

@@ -97,7 +97,7 @@ const PlantUI = {
 
     mostrarSinSesion() {
         this._mostrar('auth-panel', true);
-        ['sesion-bar', 'plantas-panel', 'live-panel', 'qr-box'].forEach((id) => this._mostrar(id, false));
+        ['sesion-bar', 'plantas-panel', 'live-panel', 'qr-box', 'vincular-panel'].forEach((id) => this._mostrar(id, false));
         this.habilitarDiagnostico(false);
     },
 
@@ -338,6 +338,67 @@ const PlantUI = {
 
 
     // ------------------------------------------------------------------
+    // Vinculación iniciada por el ESP32 (?vincular=<sesión>)
+    // ------------------------------------------------------------------
+
+    mostrarVincularDispositivo(plantas, codigo) {
+        this._el('vincular-codigo').textContent = codigo;
+        const select = this._el('vincular-planta');
+        select.innerHTML = '';
+        plantas.forEach((p) => select.appendChild(new Option(`${p.nombre} · ${this._capitalizar(p.especie)}`, p.id)));
+        this._mostrar('vincular-sin-plantas', plantas.length === 0);
+        this._el('btn-vincular').disabled = plantas.length === 0;
+        this._mostrar('vincular-panel', true);
+    },
+
+    ocultarVincularDispositivo() {
+        this._mostrar('vincular-panel', false);
+    },
+
+    plantaAVincular() {
+        return this._el('vincular-planta').value || null;
+    },
+
+    // ------------------------------------------------------------------
+    // Matera-Gotchi
+    // ------------------------------------------------------------------
+
+    /** Pinta el widget con el objeto `gotchi` que llega del GET o del evento WebSocket. */
+    renderizarGotchi(g) {
+        const widget = this._el('gotchi-widget');
+        widget.className = `gotchi gotchi-${g.estado}`;
+        this._el('gotchi-cara').textContent = g.cara;
+        this._el('gotchi-emoji').textContent = g.emoji || '';
+        this._el('gotchi-estado').textContent = g.estado;
+        this._el('gotchi-mensaje').textContent = g.mensaje;
+        this._el('gotchi-nivel').textContent = `Nivel ${g.nivel} · ${g.nivel_nombre}`;
+        this._el('gotchi-racha').textContent = `Racha: ${g.racha_dias} ${g.racha_dias === 1 ? 'día' : 'días'}`;
+
+        // Barra: avance dentro del nivel actual (llena al 100 % en el nivel máximo)
+        let porcentaje = 100;
+        let texto = `${g.xp} XP`;
+        if (g.xp_siguiente_nivel !== null && g.xp_siguiente_nivel !== undefined) {
+            const ancho = g.xp_siguiente_nivel - g.xp_nivel_actual;
+            porcentaje = Math.min(100, Math.max(0, ((g.xp - g.xp_nivel_actual) / ancho) * 100));
+            texto = `${g.xp} / ${g.xp_siguiente_nivel} XP`;
+        }
+        this._el('gotchi-xp').textContent = texto;
+        this._el('gotchi-barra-llenado').style.width = `${porcentaje}%`;
+    },
+
+    reiniciarGotchi() {
+        this._el('gotchi-widget').className = 'gotchi';
+        this._el('gotchi-cara').textContent = '(^_^)';
+        this._el('gotchi-emoji').textContent = '';
+        this._el('gotchi-estado').textContent = '--';
+        this._el('gotchi-mensaje').textContent = 'Esperando a tu planta...';
+        this._el('gotchi-nivel').textContent = 'Nivel --';
+        this._el('gotchi-xp').textContent = '0 XP';
+        this._el('gotchi-racha').textContent = 'Racha: 0 días';
+        this._el('gotchi-barra-llenado').style.width = '0%';
+    },
+
+    // ------------------------------------------------------------------
     // Panel en vivo e historial (R5, R6)
     // ------------------------------------------------------------------
 
@@ -350,6 +411,7 @@ const PlantUI = {
         this._el('live-marca').textContent = 'Última lectura: --';
         this._el('live-recs').innerHTML = '';
         this._el('historial-body').innerHTML = '';
+        this.reiniciarGotchi();
         this._mostrar('live-panel', true);
     },
 

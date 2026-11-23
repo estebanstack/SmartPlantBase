@@ -79,6 +79,24 @@
             <button type="button" id="btn-logout" class="btn-secundario">Cerrar sesión</button>
         </section>
 
+        <!-- Vinculación iniciada por el ESP32: llega con ?vincular=<sesión> en la URL del QR -->
+        <section class="card seccion hidden" id="vincular-panel">
+            <h2>Vincular este dispositivo a…</h2>
+            <p class="texto-suave">
+                Tu matera está esperando en pantalla. Elige a qué planta corresponde y confirma.
+                Código de la sesión: <code id="vincular-codigo"></code>
+            </p>
+            <div class="form-group">
+                <label for="vincular-planta">Planta</label>
+                <select id="vincular-planta"></select>
+            </div>
+            <p class="texto-suave pequeno hidden" id="vincular-sin-plantas">
+                Todavía no tienes plantas. Regístrala más abajo (el id de dispositivo puede ser cualquiera,
+                se reemplaza por el de la matera al vincular) y vuelve a esta tarjeta.
+            </p>
+            <button type="button" id="btn-vincular" class="btn-primary">Vincular</button>
+        </section>
+
         <!-- Plantas del usuario (R7) -->
         <section class="hidden" id="plantas-panel">
             <div class="grid-layout seccion">
@@ -160,6 +178,21 @@
             <div class="live-header">
                 <h2 id="live-plant-title">Planta</h2>
                 <span id="live-dispositivo" class="texto-suave"></span>
+            </div>
+
+            <!-- Matera-Gotchi: cara, mensaje, nivel, XP y racha -->
+            <div class="gotchi" id="gotchi-widget">
+                <div class="gotchi-cara" id="gotchi-cara">(^_^)</div>
+                <div class="gotchi-cuerpo">
+                    <div><span id="gotchi-emoji"></span> <strong id="gotchi-estado">--</strong></div>
+                    <p class="gotchi-mensaje" id="gotchi-mensaje">Esperando a tu planta...</p>
+                    <div class="gotchi-nivel">
+                        <span id="gotchi-nivel">Nivel --</span>
+                        <span id="gotchi-xp">0 XP</span>
+                    </div>
+                    <div class="gotchi-barra"><div id="gotchi-barra-llenado"></div></div>
+                    <span class="texto-suave pequeno" id="gotchi-racha">Racha: 0 días</span>
+                </div>
             </div>
 
             <div class="metricas">

@@ -24,6 +24,12 @@ Qué genera:
 Uso típico (vinculación automática por QR / WebSocket desde el navegador):
   python simulador_esp32.py --dispositivo-id esp32-01 --intervalo 3
 
+Modo "como el ESP32 real" (el dispositivo crea la sesión QR y muestra la URL del QR):
+  python simulador_esp32.py --qr-dispositivo --dispositivo-id esp32-SIM001 --url http://192.168.1.10:5000
+  Abre la URL ?vincular=... que imprime, inicia sesión y elige la planta.
+
+Para ver al Matera-Gotchi agradecido, agrega --regar: en la lectura #4 la humedad sube de golpe.
+
 También admite pasar el token directamente:
   python simulador_esp32.py --dispositivo-id esp32-01 --token <TOKEN> --intervalo 3
 """
@@ -58,6 +64,7 @@ class MateraSimulada:
         # El reloj simulado arranca a las 7:00 (hora Colombia, 12:00 UTC) para que la demo empiece de día.
         self.reloj = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
         self.regada = False
+        self.riego_pendiente = False  # si es True, la próxima lectura simula un riego manual
 
     def _hora_local(self) -> float:
         # Colombia es UTC-5; solo se usa para el ciclo de luz y temperatura.
@@ -94,6 +101,10 @@ class MateraSimulada:
         luz = self._luz()
         temperatura = self._temperatura()
         self._actualizar_humedad(luz, temperatura)
+        if self.riego_pendiente:
+            self.riego_pendiente = False
+            self.humedad = min(90.0, self.humedad + 30.0)
+            self.regada = True
         return {
             "humedad": round(self.humedad + self._rng.uniform(-0.5, 0.5), 1),
             "luz": luz,
@@ -139,28 +150,55 @@ def enviar(url: str, cuerpo: dict, token: str, timeout: float = 5.0):
 def describir_respuesta(codigo: int, datos) -> str:
     if isinstance(datos, dict):
         if 200 <= codigo < 300:
-            return f"{codigo} · estado {datos.get('estado', '?')}"
+            texto = f"{codigo} · estado {datos.get('estado', '?')}"
+            gotchi = datos.get("gotchi")
+            if gotchi:
+                texto += (f" · gotchi {gotchi['estado']} {gotchi['cara']} "
+                          f"nivel {gotchi['nivel']} ({gotchi['xp']} XP)")
+            return texto
         return f"{codigo} · {datos.get('error', 'ERROR')}: {datos.get('mensaje', '')}"
     return f"{codigo} · {datos}"
 
 
-def vincular_por_qr(url_base: str, dispositivo_id: str, sesion_qr: str = "", intervalo: float = 1.5) -> str:
+def crear_sesion_del_dispositivo(base: str, dispositivo_id: str) -> str:
+    """Como el ESP32 real: el dispositivo pide la sesión (el servidor elige el id) y devuelve su id."""
+    while True:
+        try:
+            codigo, datos = enviar(f"{base}/api/auth/qr/generar", {"dispositivo_id": dispositivo_id}, token="")
+        except urllib.error.URLError as error:
+            print(f"   sin conexión con {base} ({error.reason}); reintento en 3 s...")
+            time.sleep(3)
+            continue
+        if codigo == 201 and isinstance(datos, dict) and datos.get("id"):
+            return datos["id"]
+        print(f"   no se pudo crear la sesión QR ({codigo}); reintento en 3 s...")
+        time.sleep(3)
+
+
+def vincular_por_qr(url_base: str, dispositivo_id: str, sesion_qr: str = "", intervalo: float = 1.5,
+                    iniciada_por_dispositivo: bool = False) -> str:
     """
     Si no se pasó --token manualmente, abre una sesión QR en el backend para el dispositivo
-    y espera a que el usuario autorice la vinculación desde el panel WebSocket del navegador.
+    y espera a que el usuario autorice la vinculación desde el navegador.
+    Con iniciada_por_dispositivo=True imita al ESP32: crea la sesión y muestra la URL del QR.
     """
     base = url_base.rstrip("/")
-    id_sesion = sesion_qr or dispositivo_id
-    codigo, datos = enviar(
-        f"{base}/api/auth/qr/generar",
-        {"session_id": id_sesion, "dispositivo_id": dispositivo_id},
-        token="",
-    )
-    if codigo == 201 and isinstance(datos, dict):
-        id_sesion = datos.get("id", id_sesion)
-
-    print(f"📱 Esperando vinculación QR/WebSocket para '{dispositivo_id}' (sesión: {id_sesion})...")
-    print("   En el navegador, selecciona tu planta y pulsa 'Vincular dispositivo (QR / WebSocket)'.")
+    if iniciada_por_dispositivo:
+        id_sesion = crear_sesion_del_dispositivo(base, dispositivo_id)
+        print(f"📱 QR del dispositivo '{dispositivo_id}'. Abre esta URL (la que codificaría el QR):")
+        print(f"   {base}/?vincular={id_sesion}")
+        print("   Inicia sesión, elige la planta en 'Vincular este dispositivo a…' y confirma.")
+    else:
+        id_sesion = sesion_qr or dispositivo_id
+        codigo, datos = enviar(
+            f"{base}/api/auth/qr/generar",
+            {"session_id": id_sesion, "dispositivo_id": dispositivo_id},
+            token="",
+        )
+        if codigo == 201 and isinstance(datos, dict):
+            id_sesion = datos.get("id", id_sesion)
+        print(f"📱 Esperando vinculación QR/WebSocket para '{dispositivo_id}' (sesión: {id_sesion})...")
+        print("   En el navegador, selecciona tu planta y pulsa 'Vincular dispositivo (QR / WebSocket)'.")
 
     url_consulta = f"{base}/api/auth/qr/{id_sesion}"
     while True:
@@ -172,12 +210,18 @@ def vincular_por_qr(url_base: str, dispositivo_id: str, sesion_qr: str = "", int
                     print(f"✅ Vinculación QR autorizada para '{dispositivo_id}'. Iniciando telemetría...")
                     return info["token"]
                 if info.get("estado") == "EXPIRADA":
-                    # Renovar sesión QR si expiró esperando al usuario
-                    enviar(
-                        f"{base}/api/auth/qr/generar",
-                        {"session_id": id_sesion, "dispositivo_id": dispositivo_id},
-                        token="",
-                    )
+                    if iniciada_por_dispositivo:
+                        # El ESP32 real haría lo mismo: pedir otra sesión y redibujar el QR
+                        id_sesion = crear_sesion_del_dispositivo(base, dispositivo_id)
+                        url_consulta = f"{base}/api/auth/qr/{id_sesion}"
+                        print(f"   La sesión expiró. Nueva URL: {base}/?vincular={id_sesion}")
+                    else:
+                        # Renovar sesión QR si expiró esperando al usuario
+                        enviar(
+                            f"{base}/api/auth/qr/generar",
+                            {"session_id": id_sesion, "dispositivo_id": dispositivo_id},
+                            token="",
+                        )
         except urllib.error.URLError:
             pass
         time.sleep(intervalo)
@@ -193,6 +237,10 @@ def leer_argumentos(argv=None):
                         help="Token del dispositivo (opcional: si se omite, se vincula por QR/WebSocket)")
     parser.add_argument("--sesion-qr", default=os.getenv("SESION_QR", ""),
                         help="Id de sesión QR para emparejar automáticamente desde el navegador")
+    parser.add_argument("--qr-dispositivo", action="store_true",
+                        help="Vinculación como el ESP32 real: el simulador crea la sesión QR e imprime la URL ?vincular=")
+    parser.add_argument("--regar", action="store_true",
+                        help="En la lectura #4 la humedad sube de golpe (riego) para ver al Gotchi AGRADECIDA")
     parser.add_argument("--intervalo", type=float, default=3.0,
                         help="Segundos entre lecturas (por defecto 3)")
     parser.add_argument("--iteraciones", type=int, default=0,
@@ -215,7 +263,9 @@ def leer_argumentos(argv=None):
 
 def main(argv=None) -> None:
     args = leer_argumentos(argv)
-    token_activo = args.token or vincular_por_qr(args.url, args.dispositivo_id, args.sesion_qr)
+    token_activo = args.token or vincular_por_qr(
+        args.url, args.dispositivo_id, args.sesion_qr, iniciada_por_dispositivo=args.qr_dispositivo
+    )
     rng = random.Random(args.semilla)
     matera = MateraSimulada(rng, args.minutos_por_lectura, args.luz_maxima, args.humedad_inicial)
     endpoint = f"{args.url.rstrip('/')}/api/dispositivos/{args.dispositivo_id}/lecturas"
@@ -229,6 +279,8 @@ def main(argv=None) -> None:
 
     enviadas = 0
     while args.iteraciones == 0 or enviadas < args.iteraciones:
+        if args.regar and enviadas == 3:
+            matera.riego_pendiente = True
         lectura = matera.leer()
         tipo_error = rng.choice(TIPOS_DE_ERROR) if rng.random() < args.prob_error else None
 

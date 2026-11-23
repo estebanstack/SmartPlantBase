@@ -326,3 +326,15 @@ def test_panel_web_se_sirve_desde_flask(app):
     assert b"<html" in client.get("/").data.lower()
     assert client.get("/js/config.js").status_code == 200
     assert client.get("/css/style.css").status_code == 200
+
+
+def test_simulador_regar_sube_la_humedad_de_golpe():
+    import random
+    import simulador_esp32 as sim
+
+    matera = sim.MateraSimulada(random.Random(1), 30, 1800, humedad_inicial=40.0)
+    matera.leer()
+    antes = matera.humedad
+    matera.riego_pendiente = True
+    matera.leer()
+    assert matera.regada and matera.humedad - antes > 15

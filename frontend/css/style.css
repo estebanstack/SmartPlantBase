@@ -583,3 +583,32 @@ body {
 .tabla .chip { margin-top: 0; }
 .tabla-vacia { color: var(--text-muted); text-align: center !important; }
 .form-card .texto-suave { margin-bottom: 1rem; }
+
+/* Matera-Gotchi */
+.gotchi {
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    border-radius: var(--radius-md);
+}
+.gotchi-cara {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.gotchi-cuerpo { flex: 1; min-width: 0; }
+.gotchi-mensaje { margin: 0.25rem 0 0.6rem; font-style: italic; }
+.gotchi-nivel { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.3rem; }
+.gotchi-barra { height: 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden; }
+.gotchi-barra > div { height: 100%; width: 0; background: var(--primary); transition: width 0.4s ease; }
+.gotchi-SEDIENTA, .gotchi-SOFOCADA, .gotchi-CONGELADA, .gotchi-AHOGADA {
+    background: var(--warning-bg); border-color: var(--warning-border);
+}
+.gotchi-MARCHITA { background: var(--danger-bg); border-color: var(--danger-border); }
+.gotchi-AGRADECIDA .gotchi-cara { animation: gotchi-salto 0.6s ease-in-out 3; }
+@keyframes gotchi-salto { 50% { transform: translateY(-8px) scale(1.1); } }
