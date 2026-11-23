@@ -6,6 +6,7 @@ La infraestructura (matera/adaptadores/salida/) los implementa con una tecnologÃ
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from matera.dominio.gamificacion import PerfilGamificacion
 from matera.dominio.modelo import (
     Diagnostico,
     Especie,
@@ -76,6 +77,23 @@ class PlantasPort(ABC):
     def guardar_planta(self, planta: Planta) -> None:
         ...
 
+    @abstractmethod
+    def cambiar_dispositivo(self, planta_id: str, dispositivo_id: str) -> None:
+        """Vincula la planta a otro dispositivo (el ESP32 que se acaba de emparejar por QR)."""
+        ...
+
+
+class GamificacionPort(ABC):
+    """Matera-Gotchi: guardar y leer el perfil (XP, racha, Ã¡nimo) de cada planta."""
+
+    @abstractmethod
+    def obtener_perfil(self, planta_id: str) -> Optional[PerfilGamificacion]:
+        ...
+
+    @abstractmethod
+    def guardar_perfil(self, perfil: PerfilGamificacion) -> None:
+        ...
+
 
 class EmisorTokenPort(ABC):
     """
@@ -133,7 +151,11 @@ class NotificadorTiempoRealPort(ABC):
 
     @abstractmethod
     def notificar_telemetria(
-        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+        self,
+        planta: Planta,
+        lectura: Lectura,
+        diagnostico: Diagnostico,
+        gotchi: Optional[PerfilGamificacion] = None,
     ) -> None:
         ...
 

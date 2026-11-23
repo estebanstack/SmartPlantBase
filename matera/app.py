@@ -9,7 +9,7 @@ import secrets
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
@@ -19,6 +19,7 @@ from matera.adaptadores.entrada.errores_http import registrar_manejadores_error
 from matera.adaptadores.entrada.verificador_jwt import JwtVerificadorToken
 from matera.adaptadores.entrada.websocket_handlers import registrar_websocket_handlers
 from matera.adaptadores.salida.emisor_jwt import JwtEmisorTokenAdapter
+from matera.adaptadores.salida.gamificacion_bd import BdGamificacionAdapter
 from matera.adaptadores.salida.hasher_werkzeug import WerkzeugHasherAdapter
 from matera.adaptadores.salida.historial_bd import BdHistorialLecturasAdapter
 from matera.adaptadores.salida.notificador_ws import SocketIONotificadorAdapter
@@ -33,6 +34,7 @@ from matera.dominio.casos_uso import (
     AutorizarSesionQR,
     ConsultarEspecies,
     ConsultarEstado,
+    ConsultarGotchi,
     ConsultarHistorial,
     ConsultarSesionQR,
     EmitirTokenDispositivo,
@@ -71,7 +73,8 @@ def create_app(
     Ensambla adaptadores de salida y entrada (REST + WebSockets) alrededor del núcleo de dominio.
     """
     load_dotenv()
-    app = Flask(__name__)
+    ruta_frontend = Path(__file__).parent.parent / "frontend"
+    app = Flask(__name__, static_folder=None)
     app.json.sort_keys = False
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
@@ -105,6 +108,7 @@ def create_app(
     historial = BdHistorialLecturasAdapter(ruta_bd)
     usuarios = BdUsuariosAdapter(ruta_bd)
     plantas = BdPlantasAdapter(ruta_bd)
+    gamificacion = BdGamificacionAdapter(ruta_bd)
 
     # 4. Tokens JWT (R7): la misma clave firma (emisor, salida) y verifica (verificador, entrada)
     clave_jwt = clave_jwt or os.getenv("JWT_SECRET") or _clave_temporal()
@@ -122,8 +126,9 @@ def create_app(
     validar_lectura = ValidarLectura(tabla_referencia)
     consultar_especies = ConsultarEspecies(tabla_referencia)
     registrar_lectura = RegistrarLectura(
-        tabla_referencia, plantas, historial, notificador=notificador_ws
+        tabla_referencia, plantas, historial, notificador=notificador_ws, gamificacion=gamificacion
     )
+    consultar_gotchi = ConsultarGotchi(plantas, gamificacion)
     consultar_estado = ConsultarEstado(tabla_referencia, plantas, historial)
     consultar_historial = ConsultarHistorial(plantas, historial)
     listar_plantas = ListarPlantas(plantas)
@@ -153,6 +158,7 @@ def create_app(
         consultar_especies=consultar_especies,
         consultar_estado=consultar_estado,
         consultar_historial=consultar_historial,
+        consultar_gotchi=consultar_gotchi,
         listar_plantas=listar_plantas,
         registrar_planta=registrar_planta,
         emitir_token_dispositivo=emitir_token_dispositivo,
@@ -168,6 +174,16 @@ def create_app(
         verificador=verificador_token,
     ))
 
+
+    # El mismo servidor entrega el panel web (frontend/): el celular solo necesita una URL.
+    # Rutas explícitas en vez de static_folder="" para no tapar los 405/404 JSON de /api.
+    @app.route("/")
+    def panel_web():
+        return send_from_directory(ruta_frontend, "index.html")
+
+    @app.route("/<any(js,css):carpeta>/<path:archivo>")
+    def recursos_panel(carpeta: str, archivo: str):
+        return send_from_directory(ruta_frontend / carpeta, archivo)
 
     # 7. Traducción de errores a JSON (adaptadores/entrada/errores_http.py)
     registrar_manejadores_error(app)

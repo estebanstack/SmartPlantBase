@@ -34,18 +34,21 @@ def crear_api_dispositivos_blueprint(
         peticion_http.mismo_dispositivo(datos, id)
 
         # 2. Invocación al puerto de entrada con los valores y la marca de tiempo ya validados
-        diagnostico = puerto_registro.registrar(
+        resultado = puerto_registro.registrar_con_gotchi(
             dispositivo_id=id,
             valores=peticion_http.valores_medidos(datos),
             marca_tiempo=peticion_http.marca_tiempo(datos),
         )
 
-        # 3. Respuesta 201 Created con diagnóstico calculado
+        # 3. Respuesta 201 Created con diagnóstico calculado y el Gotchi en versión compacta
+        #    (el ESP32 lo dibuja en su pantalla; si la gamificación falló, el campo va en null)
+        diagnostico = resultado.diagnostico
         return jsonify({
             "mensaje": "Lectura registrada correctamente.",
             "dispositivo_id": id,
             "estado": diagnostico.estado.value,
             "diagnostico": diagnostico_a_json(diagnostico),
+            "gotchi": resultado.gotchi.como_dict(compacto=True) if resultado.gotchi else None,
         }), 201
 
     return api_bp

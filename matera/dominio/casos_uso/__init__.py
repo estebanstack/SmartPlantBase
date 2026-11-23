@@ -6,6 +6,7 @@ from matera.dominio.casos_uso.autenticar_usuario import AutenticarUsuario
 from matera.dominio.casos_uso.autorizar_sesion_qr import AutorizarSesionQR
 from matera.dominio.casos_uso.consultar_especies import ConsultarEspecies
 from matera.dominio.casos_uso.consultar_estado import ConsultarEstado
+from matera.dominio.casos_uso.consultar_gotchi import ConsultarGotchi
 from matera.dominio.casos_uso.consultar_historial import ConsultarHistorial
 from matera.dominio.casos_uso.consultar_sesion_qr import ConsultarSesionQR
 from matera.dominio.casos_uso.emitir_token_dispositivo import EmitirTokenDispositivo
@@ -20,6 +21,7 @@ __all__ = [
     "AutorizarSesionQR",
     "ConsultarEspecies",
     "ConsultarEstado",
+    "ConsultarGotchi",
     "ConsultarHistorial",
     "ConsultarSesionQR",
     "EmitirTokenDispositivo",

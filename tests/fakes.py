@@ -3,7 +3,9 @@ Dobles de prueba en memoria para los Puertos de Salida de Arquitectura Hexagonal
 Permite ejercitar las reglas de negocio, los puertos de entrada y los casos de uso
 sin necesidad de archivos, base de datos ni servidor web.
 """
+from dataclasses import replace
 from typing import Dict, List, Optional, Tuple
+from matera.dominio.gamificacion import PerfilGamificacion
 from matera.dominio.modelo import (
     Diagnostico,
     Especie,
@@ -16,6 +18,7 @@ from matera.dominio.modelo import (
 )
 from matera.dominio.puertos.salida import (
     EmisorTokenPort,
+    GamificacionPort,
     HasherContrasenaPort,
     HistorialLecturasPort,
     NotificadorTiempoRealPort,
@@ -117,6 +120,22 @@ class FakePlantas(PlantasPort):
     def guardar_planta(self, planta: Planta) -> None:
         self.plantas[planta.id] = planta
 
+    def cambiar_dispositivo(self, planta_id: str, dispositivo_id: str) -> None:
+        self.plantas[planta_id] = replace(self.plantas[planta_id], dispositivo_id=dispositivo_id)
+
+
+class FakeGamificacion(GamificacionPort):
+    """Doble en memoria de GamificacionPort."""
+
+    def __init__(self):
+        self.perfiles: Dict[str, PerfilGamificacion] = {}
+
+    def obtener_perfil(self, planta_id: str) -> Optional[PerfilGamificacion]:
+        return self.perfiles.get(planta_id)
+
+    def guardar_perfil(self, perfil: PerfilGamificacion) -> None:
+        self.perfiles[perfil.planta_id] = perfil
+
 
 class FakeEmisorToken(EmisorTokenPort):
     """Doble en memoria de EmisorTokenPort."""
@@ -163,7 +182,7 @@ class FakeNotificadorTiempoReal(NotificadorTiempoRealPort):
         self.eventos_qr.append(sesion)
 
     def notificar_telemetria(
-        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico, gotchi=None
     ) -> None:
         self.eventos_telemetria.append((planta, lectura, diagnostico))
 

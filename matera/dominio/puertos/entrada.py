@@ -6,6 +6,7 @@ le puede pedir al dominio. Cada uno lo implementa un caso de uso en matera/domin
 from abc import ABC, abstractmethod
 from typing import List, Mapping, Optional
 
+from matera.dominio.gamificacion import PerfilGamificacion, ResultadoLectura
 from matera.dominio.modelo import (
     Diagnostico,
     Especie,
@@ -46,6 +47,16 @@ class RegistrarLecturaPort(ABC):
     ) -> Diagnostico:
         ...
 
+    @abstractmethod
+    def registrar_con_gotchi(
+        self,
+        dispositivo_id: str,
+        valores: Mapping[str, float],
+        marca_tiempo: str = "",
+    ) -> ResultadoLectura:
+        """Lo mismo que registrar(), pero además devuelve el estado del Matera-Gotchi."""
+        ...
+
 
 class ConsultarEstadoPort(ABC):
     """R5 y R6: estado actual (última lectura + diagnóstico) de una planta del usuario."""
@@ -62,6 +73,14 @@ class ConsultarHistorialPort(ABC):
     def consultar_historial(
         self, usuario_id: str, planta_id: str, limite: int = 20
     ) -> List[RegistroLectura]:
+        ...
+
+
+class ConsultarGotchiPort(ABC):
+    """Matera-Gotchi: estado de ánimo, XP, nivel y racha de una planta del usuario."""
+
+    @abstractmethod
+    def consultar_gotchi(self, usuario_id: str, planta_id: str) -> PerfilGamificacion:
         ...
 
 

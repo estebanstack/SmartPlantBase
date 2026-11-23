@@ -33,6 +33,7 @@ from matera.dominio.puertos.entrada import (
     AutorizarSesionQRPort,
     ConsultarEspeciesPort,
     ConsultarEstadoPort,
+    ConsultarGotchiPort,
     ConsultarHistorialPort,
     ConsultarSesionQRPort,
     EmitirTokenDispositivoPort,
@@ -57,6 +58,7 @@ def crear_api_front_blueprint(
     consultar_sesion_qr: Optional[ConsultarSesionQRPort] = None,
     autorizar_sesion_qr: Optional[AutorizarSesionQRPort] = None,
     socketio: Optional[Any] = None,
+    consultar_gotchi: Optional[ConsultarGotchiPort] = None,
 ) -> Blueprint:
     """
     Fábrica del Blueprint REST para clientes web / frontend.
@@ -201,6 +203,14 @@ def crear_api_front_blueprint(
             limite=limite,
         )
         return jsonify([registro_a_json(r) for r in historial]), 200
+
+    if consultar_gotchi is not None:
+        @api_bp.route("/plantas/<planta_id>/gotchi", methods=["GET"])
+        @requiere_usuario(verificador)
+        def consultar_gotchi_planta(planta_id: str, usuario_id: str):
+            """GET /api/plantas/{id}/gotchi - Estado de ánimo, XP, nivel y racha de la planta."""
+            perfil = consultar_gotchi.consultar_gotchi(usuario_id=usuario_id, planta_id=planta_id)
+            return jsonify(perfil.como_dict()), 200
 
     # -------------------------------------------------------------------------
     # Vinculación y Autorización de Sesiones QR + WebSockets (/api/auth/qr/...)

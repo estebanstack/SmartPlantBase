@@ -5,10 +5,11 @@ Implementa NotificadorTiempoRealPort emitiendo eventos a las salas:
 - 'user_{usuario_id}': telemetría y alertas botánicas en vivo para el propietario.
 """
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from flask_socketio import SocketIO
 
+from matera.dominio.gamificacion import PerfilGamificacion
 from matera.dominio.modelo import Diagnostico, Lectura, Planta, SesionQR
 from matera.dominio.puertos.salida import NotificadorTiempoRealPort
 
@@ -40,7 +41,11 @@ class SocketIONotificadorAdapter(NotificadorTiempoRealPort):
             self._socketio.emit("qr_autorizado", datos, to=sala_disp)
 
     def notificar_telemetria(
-        self, planta: Planta, lectura: Lectura, diagnostico: Diagnostico
+        self,
+        planta: Planta,
+        lectura: Lectura,
+        diagnostico: Diagnostico,
+        gotchi: Optional[PerfilGamificacion] = None,
     ) -> None:
         sala = f"user_{planta.usuario_id}"
         diag_dict = {
@@ -76,6 +81,8 @@ class SocketIONotificadorAdapter(NotificadorTiempoRealPort):
             "ultima_lectura": lectura_dict,
             "diagnostico": diag_dict,
         }
+        if gotchi is not None:
+            payload["gotchi"] = gotchi.como_dict()
         self._socketio.emit("telemetria_actualizada", payload, to=sala)
         logger.info("Emitido 'telemetria_actualizada' hacia la sala %s", sala)
 

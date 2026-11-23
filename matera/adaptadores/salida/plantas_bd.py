@@ -40,6 +40,10 @@ class BdPlantasAdapter(PlantasPort):
                 (planta.id, planta.nombre, planta.especie, planta.usuario_id, planta.dispositivo_id),
             )
 
+    def cambiar_dispositivo(self, planta_id: str, dispositivo_id: str) -> None:
+        with conectar(self._ruta) as con:
+            con.execute("UPDATE plantas SET dispositivo_id = ? WHERE id = ?", (dispositivo_id, planta_id))
+
     @staticmethod
     def _a_planta(fila: sqlite3.Row) -> Planta:
         return Planta(

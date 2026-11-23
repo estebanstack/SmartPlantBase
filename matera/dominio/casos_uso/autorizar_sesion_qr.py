@@ -4,12 +4,17 @@ Si se vincula una planta del usuario, verifica la regla de propiedad en el domin
 emite el token del dispositivo por debajo (R7) y notifica a la sala WebSocket qr_{id}
 sin que el usuario tenga que copiar ni pegar manualmente el token.
 """
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Optional
 
 from matera.dominio.casos_uso.propiedad import obtener_planta_del_usuario
-from matera.dominio.excepciones import AccesoNoAutorizadoPlantaError, SesionQRNoEncontradaError
-from matera.dominio.modelo import EstadoSesionQR, SesionQR
+from matera.dominio.excepciones import (
+    AccesoNoAutorizadoPlantaError,
+    DispositivoYaVinculadoError,
+    SesionQRNoEncontradaError,
+)
+from matera.dominio.modelo import EstadoSesionQR, Planta, SesionQR
 from matera.dominio.puertos.entrada import AutorizarSesionQRPort
 from matera.dominio.puertos.salida import (
     EmisorTokenPort,
@@ -66,6 +71,10 @@ class AutorizarSesionQR(AutorizarSesionQRPort):
         if self._plantas is not None and self._emisor_token is not None:
             if planta_objetivo_id:
                 planta = obtener_planta_del_usuario(self._plantas, usuario_id, planta_objetivo_id)
+                # Si el ESP32 creó la sesión (trae su propio dispositivo_id), la planta elegida
+                # pasa a usar ese dispositivo y el token se emite para él.
+                if not token_final and sesion.dispositivo_id and sesion.dispositivo_id != planta.dispositivo_id:
+                    planta = self._vincular_dispositivo(planta, sesion.dispositivo_id)
                 planta_objetivo_id = planta.id
                 dispositivo_objetivo_id = planta.dispositivo_id
                 if not token_final:
@@ -94,3 +103,17 @@ class AutorizarSesionQR(AutorizarSesionQRPort):
             self._notificador.notificar_qr_autorizado(sesion)
 
         return sesion
+
+    def _vincular_dispositivo(self, planta: Planta, dispositivo_id: str) -> Planta:
+        """
+        Cambia el dispositivo de la planta. Si otra planta del mismo usuario lo tenía, esa queda
+        sin dispositivo (un id "libre-..." porque dispositivo_id es único y obligatorio).
+        Si lo tiene una planta de otro usuario, no se toca.
+        """
+        ocupante = self._plantas.obtener_planta_por_dispositivo(dispositivo_id)
+        if ocupante is not None and ocupante.id != planta.id:
+            if not ocupante.pertenece_a(planta.usuario_id):
+                raise DispositivoYaVinculadoError(dispositivo_id)
+            self._plantas.cambiar_dispositivo(ocupante.id, f"libre-{ocupante.id}"[:40])
+        self._plantas.cambiar_dispositivo(planta.id, dispositivo_id)
+        return replace(planta, dispositivo_id=dispositivo_id)
