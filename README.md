@@ -86,18 +86,16 @@ python -m matera.adaptadores.salida.sqlite_bd data/matera.db --demo
 
 ## 3. Ejecución
 
-Se usan tres terminales.
+Se usan dos terminales (el backend ya sirve el front).
 
-**1. Backend**
+**1. Backend y front**
 ```bash
-python app.py
+python app.py                 # o ./scripts/iniciar_demo.sh, que además muestra las IPs del portátil
 ```
+Abrir `http://localhost:5000`. El front sale del mismo servidor que la API, así que desde el celular basta con `http://<ip-del-portátil>:5000`. (`frontend/js/config.js` toma la dirección de la API de `window.location`; si se abre `index.html` directamente como archivo, usa `http://127.0.0.1:5000/api`.)
 
-**2. Front** (servido aparte, desde otro origen)
-```bash
-python -m http.server 8000 --directory frontend
-```
-Abrir `http://localhost:8000`. Usuarios de demostración: `ana@matera.edu.co` y `carlos@matera.edu.co`, los dos con la clave `clave123`. También se puede crear una cuenta nueva.
+**2. Usuarios**
+Usuarios de demostración: `ana@matera.edu.co` y `carlos@matera.edu.co`, los dos con la clave `clave123`. También se puede crear una cuenta nueva.
 
 **3. Simulador del ESP32**
 
@@ -140,13 +138,21 @@ Todas las respuestas son JSON. Los errores tienen siempre la misma forma: `{"err
 | `POST /api/plantas/{id}/token-dispositivo` | Usuario (dueño) | Token nuevo para el dispositivo de la planta |
 | `GET /api/plantas/{id}/estado` | Usuario (dueño) | Última lectura y su diagnóstico |
 | `GET /api/plantas/{id}/historial?limite=20` | Usuario (dueño) | Lecturas guardadas, de la más reciente a la más antigua según la hora de medición (`limite` entre 1 y 100) |
-| `POST /api/dispositivos/{id}/lecturas` | Dispositivo (el mismo `{id}`) | El ESP32 reporta una lectura |
+| `GET /api/plantas/{id}/gotchi` | Usuario (dueño) | Estado de ánimo, XP, nivel y racha del Matera-Gotchi |
+| `POST /api/dispositivos/{id}/lecturas` | Dispositivo (el mismo `{id}`) | El ESP32 reporta una lectura; la respuesta 201 trae el campo `gotchi` |
+| `POST /api/auth/qr/generar`, `GET /api/auth/qr/{sesion}`, `POST /api/auth/qr/{sesion}/autorizar` | — / — / Usuario | Vinculación por QR: el dispositivo crea la sesión, el usuario la autoriza eligiendo una planta |
 
 Cuerpo de una lectura del dispositivo:
 ```json
 { "dispositivo_id": "esp32-01", "marca_tiempo": "2026-10-27T15:00:00Z",
   "humedad": 34.2, "luz": 820, "temperatura": 22.4 }
 ```
+
+La respuesta 201 incluye, además del diagnóstico, un campo compacto `gotchi` que el ESP32 dibuja en su pantalla:
+```json
+"gotchi": { "estado": "AGRADECIDA", "cara": "\\(^o^)/", "mensaje": "¡Agua fresca! ...", "nivel": 1, "xp": 70 }
+```
+Si la gamificación falla, la lectura igual se guarda y `gotchi` va en `null`.
 
 La `marca_tiempo` puede venir con cualquier zona horaria (`2026-10-27T10:00:00-05:00`); el backend la guarda en UTC (`2026-10-27T15:00:00Z`) y ordena el historial por ella, así una lectura que llega atrasada no reemplaza a la última.
 
@@ -159,6 +165,21 @@ Códigos de error:
 | `ACCESO_DENEGADO` | 403 | Token con otro alcance, dispositivo que se hace pasar por otro, o planta de otro usuario |
 | `ESPECIE_NO_SOPORTADA`, `PLANTA_NO_ENCONTRADA`, `DISPOSITIVO_NO_ENCONTRADO` | 404 | No existe |
 | `USUARIO_YA_EXISTE`, `DISPOSITIVO_YA_VINCULADO` | 409 | Correo o dispositivo ya usados |
+
+---
+
+## Hardware / ESP32
+
+El firmware está en `firmware/` (PlatformIO, Arduino, placa `esp32dev`) y habla con este mismo backend. Lo que hace:
+
+- Se conecta al WiFi con un portal cautivo (`MateraGotchi-Setup`) donde también se escribe la dirección del servidor.
+- Se vincula por QR: crea su propia sesión, dibuja en la OLED un QR con `http://<servidor>/?vincular=<sesión>`, y al escanearlo con el celular el front pide elegir la planta y autoriza la sesión. La planta pasa a usar el id del dispositivo (`esp32-XXXXXX`, sale de la MAC).
+- Cada 10 s lee sus sensores, envía la lectura y dibuja al Matera-Gotchi con el campo `gotchi` de la respuesta.
+- Todo lo que cambia entre montajes (pines, modelos de sensor, rol del potenciómetro) está en `firmware/include/config_pines.h`. Hay un segundo entorno, `diagnostico`, para descubrir pines y modelos antes de configurarlo.
+
+La guía paso a paso (incluido el "qué hacer mañana") está en [`firmware/README.md`](firmware/README.md). El simulador puede imitar al ESP32 completo: `python simulador_esp32.py --qr-dispositivo --dispositivo-id esp32-SIM001 --regar`.
+
+El Matera-Gotchi (estados de ánimo, XP, niveles y racha) vive en `matera/dominio/gamificacion.py` y sigue la propuesta de `docs/propuesta_gamificacion_tamagotchi.md`.
 
 ---
 
@@ -177,6 +198,7 @@ pytest
 | `tests/test_api_dispositivos.py` | Endpoint del dispositivo: token, suplantación, lecturas válidas e inválidas |
 | `tests/test_api_plantas.py` | Flujo completo: usuario → planta → token → lectura → estado |
 | `tests/test_seguridad_jwt.py` | Login, tokens inválidos o vencidos, alcances y planta ajena (403) |
+| `tests/test_gamificacion.py` | Matera-Gotchi: reglas puras (ánimo, XP, niveles, racha, riego), adaptador SQLite, campo `gotchi` en la API y el WebSocket, y la vinculación por QR iniciada por el dispositivo |
 | `tests/test_simulador.py` | El simulador no importa el proyecto, genera datos realistas y funciona de punta a punta |
 
 Para comprobar que el dominio no depende de la infraestructura, se puede quitar la carpeta de adaptadores y correr solo las pruebas del dominio:
@@ -206,6 +228,8 @@ mv matera/adaptadores /tmp/adaptadores && pytest tests/test_dominio.py; mv /tmp/
 SmartPlantBase/
 ├── app.py                         # Arranque: carga .env y llama a create_app()
 ├── simulador_esp32.py             # Simulador independiente del ESP32
+├── scripts/iniciar_demo.sh        # Arranca el backend para la demo y muestra las IPs
+├── firmware/                      # Firmware del ESP32 (PlatformIO); ver firmware/README.md
 ├── .env.example                   # Plantilla de configuración (copiar como .env)
 ├── data/
 │   ├── especies_referencia.csv    # Tabla de referencia en CSV (5 especies, Anexo B)
@@ -216,7 +240,7 @@ SmartPlantBase/
 ├── matera/
 │   ├── app.py                     # Punto de composición (create_app)
 │   ├── dominio/
-│   │   ├── modelo.py · validador.py · excepciones.py
+│   │   ├── modelo.py · validador.py · gamificacion.py · excepciones.py
 │   │   ├── casos_uso/             # Un caso de uso por puerto de entrada
 │   │   └── puertos/               # entrada.py y salida.py
 │   └── adaptadores/
