@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Arranca el backend para la demo con el ESP32.
 #
-# - Usa el entorno virtual compartido (../venv).
+# - Usa el entorno virtual del repo (venv/) o, si no existe, el compartido (../venv).
 # - Comprueba que JWT_SECRET esté en .env (sin imprimirlo).
 # - Muestra las direcciones por las que el ESP32 y el celular pueden llegar al portátil.
 # - Avisa si el firewall (ufw) está activo.
@@ -11,11 +11,15 @@ set -u
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$RAIZ" || exit 1
-PYTHON="$RAIZ/../venv/bin/python"
+if [ -x "$RAIZ/venv/bin/python" ]; then
+    PYTHON="$RAIZ/venv/bin/python"
+else
+    PYTHON="$RAIZ/../venv/bin/python"
+fi
 
 if [ ! -x "$PYTHON" ]; then
-    echo "No encuentro el entorno virtual en $PYTHON"
-    echo "Créalo con:  python3 -m venv ../venv && ../venv/bin/pip install -r requirements.txt"
+    echo "No encuentro un entorno virtual (ni venv/ ni ../venv)"
+    echo "Créalo con:  python3 -m venv venv && venv/bin/pip install -r requirements.txt"
     exit 1
 fi
 
