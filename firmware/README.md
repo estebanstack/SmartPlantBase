@@ -2,7 +2,9 @@
 
 Firmware para el ESP32 de la matera: lee los sensores, los manda al backend de SmartPlantBase y dibuja en la pantalla OLED la carita del Matera-Gotchi que responde el servidor.
 
-> Estado: compila y está probado contra el backend con el simulador. **No se ha probado con la placa real** (las dependencias de pines y modelos se confirman con el montaje en mano). Los pasos de abajo están pensados para hacer eso.
+> **En Windows** sigue [`../GUIA_WINDOWS.md`](../GUIA_WINDOWS.md) (scripts `.bat`, sin instalar nada a mano). Esta guía describe el mismo proceso con comandos de Linux.
+>
+> Estado: compila y está probado contra el backend con el simulador. En la placa real están confirmados la perilla (GPIO34) y la sonda de suelo (GPIO35); la OLED (SH1106) y el DHT22 siguen sin responder de forma estable (ver `../CONTEXTO_CLAUDE.md`).
 
 ## Qué hay aquí
 
@@ -28,10 +30,11 @@ firmware/
    ```bash
    sudo usermod -aG dialout $USER
    ```
-2. PlatformIO ya está instalado en `~/.platformio-venv`. Para escribir menos:
+2. PlatformIO: si `pio` no está en tu PATH, instálalo en el venv del repo (`venv/bin/pip install platformio`) y úsalo como `venv/bin/pio`. Para escribir menos:
    ```bash
-   alias pio=~/.platformio-venv/bin/pio
+   alias pio=venv/bin/pio     # o la ruta donde lo tengas instalado
    ```
+   En esta guía `pio run -e ...` se ejecuta desde la carpeta `firmware/`. También puedes lanzarlo desde la raíz con `pio run -d firmware -e ...`.
 3. Revisa que `JWT_SECRET` esté en `.env` (si no, `scripts/iniciar_demo.sh` te dice cómo crearla). Sin ella, cada reinicio del backend invalida el token del ESP32.
 
 ### 1. Red y backend
@@ -64,7 +67,7 @@ firmware/
 ### 3. Configurar y subir el firmware principal
 
 1. Edita **solo** `firmware/include/config_pines.h`:
-   - `SERVIDOR_POR_DEFECTO`: pon el nombre real de tu portátil (el que imprimió el script) o su IP.
+   - `SERVIDOR_POR_DEFECTO`: es un marcador (`192.168.x.x:5000`); en el portal WiFi escribes la IP real que imprimió el script, así que no hace falta cambiarlo aquí.
    - Pines y tipo de la OLED, temperatura y humedad (`DHT11`, `DHT22` o sonda de suelo).
    - Potenciómetro: `POT_PIN` y `POT_ROL`. Con `ROL_LUZ` la perilla hace de sensor de luz; con `ROL_HUMEDAD`, girarla "riega" la planta y el Gotchi se pone agradecido.
    - Si usas sonda de suelo, `HUM_SUELO_ADC_SECO` y `HUM_SUELO_ADC_MOJADO` con los valores que viste en el diagnóstico (sonda al aire y sonda en agua).
@@ -92,7 +95,7 @@ Llénala con lo que salga del diagnóstico.
 
 | Componente | Señal | Pin del ESP32 | Notas |
 |---|---|---|---|
-| OLED SSD1306 | VCC | 3V3 | |
+| OLED (SSD1306 o SH1106) | VCC | 3V3 | el 1.3" es SH1106 (`OLED_CONTROLADOR` en `config_pines.h`) |
 | | GND | GND | |
 | | SDA | GPIO ___ (por defecto 21) | dirección I2C: 0x___ |
 | | SCL | GPIO ___ (por defecto 22) | |
@@ -118,7 +121,7 @@ Llénala con lo que salga del diagnóstico.
 - **Los GPIO 34, 35, 36 y 39 no sirven para un DHT.** Solo son entrada. Pon el DHT en uno como el 4, 5, 18 o 19.
 - **Sensores a 3.3 V.** El ESP32 usa 3.3 V en sus pines: alimenta los sensores con 3V3 salvo que su módulo diga expresamente que soporta 5 V en la señal. Una sonda a 5 V puede dañar la entrada analógica.
 - **"Error de sensor: temperatura" (o humedad).** El DHT no responde: revisa cableado, pull-up y el modelo (`DHT11` vs `DHT22`) en `config_pines.h`.
-- **La OLED no enciende.** Mira en el diagnóstico si el I2C aparece en `0x3C` o `0x3D` y ajusta `OLED_DIRECCION`. El firmware sigue funcionando por serie aunque no haya pantalla.
+- **La OLED no enciende.** Revisa primero alimentación y cables (VCC a 3V3, GND, conector bien metido; en protoboards grandes los rieles pueden venir partidos). Si el diagnóstico avisa de un falso positivo, la línea SDA está retenida en bajo: la OLED no tiene corriente. Prueba también el otro controlador (`OLED_SH1106` o `OLED_SSD1306`). Mira en el diagnóstico si el I2C aparece en `0x3C` o `0x3D` y ajusta `OLED_DIRECCION`. El firmware sigue funcionando por serie aunque no haya pantalla.
 - **El servidor no tiene internet (hotspot sin datos).** La hora se toma de la cabecera `Date` del propio backend si NTP falla.
 - **Cada reinicio del backend pide vincular otra vez.** Pasa si falta `JWT_SECRET` en `.env`: el token que tenía el ESP32 deja de valer (401) y el firmware vuelve a mostrar el QR.
 

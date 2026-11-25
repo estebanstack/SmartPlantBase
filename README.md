@@ -177,7 +177,7 @@ El firmware está en `firmware/` (PlatformIO, Arduino, placa `esp32dev`) y habla
 - Cada 10 s lee sus sensores, envía la lectura y dibuja al Matera-Gotchi con el campo `gotchi` de la respuesta.
 - Todo lo que cambia entre montajes (pines, modelos de sensor, rol del potenciómetro) está en `firmware/include/config_pines.h`. Hay un segundo entorno, `diagnostico`, para descubrir pines y modelos antes de configurarlo.
 
-La guía paso a paso (incluido el "qué hacer mañana") está en [`firmware/README.md`](firmware/README.md). El simulador puede imitar al ESP32 completo: `python simulador_esp32.py --qr-dispositivo --dispositivo-id esp32-SIM001 --regar`.
+Guía para **Windows** (scripts `.bat` de instalar, iniciar, flashear y ver el puerto serie): [`GUIA_WINDOWS.md`](GUIA_WINDOWS.md). Guía detallada del firmware, con comandos de Linux: [`firmware/README.md`](firmware/README.md). Para trabajar con Claude web, ver [`CONTEXTO_CLAUDE.md`](CONTEXTO_CLAUDE.md). El simulador puede imitar al ESP32 completo: `python simulador_esp32.py --qr-dispositivo --dispositivo-id esp32-SIM001 --regar`.
 
 El Matera-Gotchi (estados de ánimo, XP, niveles y racha) vive en `matera/dominio/gamificacion.py` y sigue la propuesta de `docs/propuesta_gamificacion_tamagotchi.md`.
 
@@ -228,7 +228,9 @@ mv matera/adaptadores /tmp/adaptadores && pytest tests/test_dominio.py; mv /tmp/
 SmartPlantBase/
 ├── app.py                         # Arranque: carga .env y llama a create_app()
 ├── simulador_esp32.py             # Simulador independiente del ESP32
-├── scripts/iniciar_demo.sh        # Arranca el backend para la demo y muestra las IPs
+├── scripts/                       # instalar/iniciar_demo/flashear/monitor (.bat + .ps1), iniciar_demo.sh (Linux), monitor_serie.py
+├── GUIA_WINDOWS.md                # Pasos para Windows
+├── CONTEXTO_CLAUDE.md             # Resumen del proyecto para Claude web
 ├── firmware/                      # Firmware del ESP32 (PlatformIO); ver firmware/README.md
 ├── .env.example                   # Plantilla de configuración (copiar como .env)
 ├── data/
