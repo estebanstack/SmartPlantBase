@@ -16,14 +16,17 @@
 //  1. SERVIDOR (el portátil que corre app.py)
 // -------------------------------------------------------------------------------------
 // Valor que aparece por defecto en el portal de configuración WiFi (se puede cambiar ahí).
-// Formato "equipo:puerto". Usa el nombre que imprime scripts/iniciar_demo.sh (<hostname>.local)
-// o, si el .local no resuelve, la IP del portátil en la red del hotspot (ej. "192.168.43.10:5000").
-// Puesto con el hostname real del portátil; si el .local falla, escribe la IP en el portal.
-#define SERVIDOR_POR_DEFECTO "esteban-IdeaPad-Slim-3-15IRH8.local:5000"
+// Formato "equipo:puerto". Es un marcador: en el portal escribe la IP que imprime el script de
+// inicio (iniciar_demo.bat en Windows, scripts/iniciar_demo.sh en Linux), por ejemplo "192.168.43.10:5000".
+#define SERVIDOR_POR_DEFECTO "192.168.x.x:5000"
 
 // -------------------------------------------------------------------------------------
 //  2. PANTALLA OLED SSD1306 (I2C, 128x64)
 // -------------------------------------------------------------------------------------
+#define OLED_SSD1306    1        // OLED 0.96" (pines GND VCC SCL SDA)
+#define OLED_SH1106     2        // OLED 1.3"  (pines VDD GND SCK SDA)
+#define OLED_CONTROLADOR OLED_SH1106
+
 #define OLED_SDA        21
 #define OLED_SCL        22
 #define OLED_DIRECCION  0x3C     // la mayoría usa 0x3C; algunas 0x3D (el diagnóstico la muestra)
@@ -38,6 +41,8 @@
 #define TEMP_ANALOGICO    3   // sensor analógico lineal: LM35, TMP36, etc.
 
 #define TEMP_TIPO         TEMP_DHT22
+// Cableado recomendado del DHT22 (módulo blanco con "+ out -"): + a 3V3, - a GND, out a D4 (GPIO4).
+// OJO: el pin "out" aún no está confirmado en el montaje real; 4 es un valor provisional.
 #define TEMP_PIN          4
 
 // Solo si TEMP_TIPO es TEMP_ANALOGICO:  grados = (milivoltios - OFFSET) / MV_POR_GRADO
@@ -59,7 +64,7 @@
 // OJO: un DHT mide humedad del aire, no de la tierra. Para la demo sirve, pero para una matera
 // de verdad lo correcto es una sonda de suelo (HUM_SUELO).
 #define HUM_TIPO          HUM_SUELO
-#define HUM_PIN           34
+#define HUM_PIN           35        // sonda capacitiva v1.2 (AOUT)
 
 // Calibración de la sonda de suelo (solo si HUM_TIPO es HUM_SUELO). Son valores crudos del ADC
 // (0-4095). Mide con la sonda al aire (seca) y metida en un vaso de agua (mojada) usando la
@@ -75,7 +80,7 @@
 #define ROL_HUMEDAD    2   // la perilla simula la humedad (0-100 %): girarla "riega" la planta
 
 #define POT_ROL            ROL_LUZ
-#define POT_PIN            35        // pin ADC1 (32, 33, 34, 35, 36 o 39)
+#define POT_PIN            34        // pin ADC1 (32, 33, 34, 35, 36 o 39)
 #define POT_INVERTIR       0         // pon 1 si al girar a la derecha el valor baja
 
 // Calibración del recorrido del potenciómetro (valores crudos del ADC)

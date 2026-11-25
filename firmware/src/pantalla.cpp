@@ -2,21 +2,43 @@
 #include "config_pines.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 #include <qrcode.h>
 
+// Dos chips posibles: SSD1306 (OLED 0.96", pines GND VCC SCL SDA) o SH1106 (OLED 1.3", pines VDD GND SCK SDA)
+#if OLED_CONTROLADOR == OLED_SH1106
+#include <Adafruit_SH110X.h>
+static Adafruit_SH1106G oled(OLED_ANCHO, OLED_ALTO, &Wire, -1);
+#define COLOR_BLANCO SH110X_WHITE
+#define COLOR_NEGRO  SH110X_BLACK
+#else
+#include <Adafruit_SSD1306.h>
 static Adafruit_SSD1306 oled(OLED_ANCHO, OLED_ALTO, &Wire, -1);
+#define COLOR_BLANCO SSD1306_WHITE
+#define COLOR_NEGRO  SSD1306_BLACK
+#endif
 static bool hayOled = false;
 
 bool pantallaIniciar() {
     Wire.begin(OLED_SDA, OLED_SCL);
-    hayOled = oled.begin(SSD1306_SWITCHCAPVCC, OLED_DIRECCION);
+    // Antes de iniciar la librería, comprueba que algo conteste en el bus: con la OLED mal
+    // conectada o sin alimentación, oled.begin() puede colgar el arranque (pasó con el SH1106).
+    Wire.setTimeOut(20);
+    Wire.beginTransmission(OLED_DIRECCION);
+    bool contesta = (Wire.endTransmission() == 0);
+    hayOled = false;
+    if (contesta) {
+#if OLED_CONTROLADOR == OLED_SH1106
+        hayOled = oled.begin(OLED_DIRECCION, true);
+#else
+        hayOled = oled.begin(SSD1306_SWITCHCAPVCC, OLED_DIRECCION);
+#endif
+    }
     if (!hayOled) {
         Serial.printf("[OLED] no responde en 0x%02X (SDA=%d, SCL=%d). Sigo solo por serie.\n",
                       OLED_DIRECCION, OLED_SDA, OLED_SCL);
         return false;
     }
-    oled.setTextColor(SSD1306_WHITE);
+    oled.setTextColor(COLOR_BLANCO);
     oled.cp437(true);
     oled.clearDisplay();
     oled.display();
@@ -74,8 +96,8 @@ static int ajustarLineas(const String& texto, int ancho, String* lineas, int max
 }
 
 static void marcaSinRed() {   // pequeña "X" arriba a la derecha
-    oled.drawLine(120, 0, 126, 6, SSD1306_WHITE);
-    oled.drawLine(126, 0, 120, 6, SSD1306_WHITE);
+    oled.drawLine(120, 0, 126, 6, COLOR_BLANCO);
+    oled.drawLine(126, 0, 120, 6, COLOR_BLANCO);
 }
 
 void pantallaSplash() {
@@ -122,14 +144,14 @@ bool pantallaQR(const char* url) {
     oled.setCursor(0, 54); oled.print("sesion");
 
     // Fondo blanco (zona tranquila) y módulos oscuros, como en un QR impreso
-    oled.fillRect(64, 0, 64, 64, SSD1306_WHITE);
+    oled.fillRect(64, 0, 64, 64, COLOR_BLANCO);
     const int escala = 2;
     const int origenX = 64 + (64 - qr.size * escala) / 2;
     const int origenY = (64 - qr.size * escala) / 2;
     for (uint8_t y = 0; y < qr.size; y++)
         for (uint8_t x = 0; x < qr.size; x++)
             if (qrcode_getModule(&qr, x, y))
-                oled.fillRect(origenX + x * escala, origenY + y * escala, escala, escala, SSD1306_BLACK);
+                oled.fillRect(origenX + x * escala, origenY + y * escala, escala, escala, COLOR_NEGRO);
     oled.display();
     return true;
 }
