@@ -64,7 +64,7 @@
 // OJO: un DHT mide humedad del aire, no de la tierra. Para la demo sirve, pero para una matera
 // de verdad lo correcto es una sonda de suelo (HUM_SUELO).
 #define HUM_TIPO          HUM_SUELO
-#define HUM_PIN           35        // sonda capacitiva v1.2 (AOUT)
+#define HUM_PIN           34        // sonda de humedad del suelo (AOUT) en GPIO34
 
 // Calibración de la sonda de suelo (solo si HUM_TIPO es HUM_SUELO). Son valores crudos del ADC
 // (0-4095). Mide con la sonda al aire (seca) y metida en un vaso de agua (mojada) usando la
@@ -80,7 +80,7 @@
 #define ROL_HUMEDAD    2   // la perilla simula la humedad (0-100 %): girarla "riega" la planta
 
 #define POT_ROL            ROL_LUZ
-#define POT_PIN            34        // pin ADC1 (32, 33, 34, 35, 36 o 39)
+#define POT_PIN            32        // potenciómetro que simula la luz, en GPIO32 (ADC1)
 #define POT_INVERTIR       0         // pon 1 si al girar a la derecha el valor baja
 
 // Calibración del recorrido del potenciómetro (valores crudos del ADC)
